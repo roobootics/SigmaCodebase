@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.base;
 
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -15,6 +16,7 @@ import org.firstinspires.ftc.teamcode.base.NonLinearActions.SleepUntilTrue;
 import org.firstinspires.ftc.teamcode.base.NonLinearActions.InstantAction;
 import org.firstinspires.ftc.teamcode.base.NonLinearActions.CompoundAction;
 import org.firstinspires.ftc.teamcode.base.NonLinearActions.NonLinearAction;
+import org.firstinspires.ftc.teamcode.base.NonLinearActions.ConditionalAction;
 import org.firstinspires.ftc.teamcode.base.NonLinearActions.PressTrigger;
 import org.firstinspires.ftc.teamcode.base.NonLinearActions.ConditionalPair;
 
@@ -26,6 +28,7 @@ import java.util.function.Function;
 
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.ReturningFunc;
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.Condition;
+import org.firstinspires.ftc.teamcode.base.custom.TimeBasedLocalizers;
 
 public abstract class Components {
     public static HardwareMap hardwareMap;
@@ -259,8 +262,8 @@ public abstract class Components {
         public PressTrigger triggeredToggleAction(Condition condition, double target1, double target2){
             return new PressTrigger(new ConditionalPair(condition, toggleAction(target1,target2)));
         }
-        public PressTrigger triggeredDynamicAction(Condition upCondition, Condition downCondition, double change){
-            return new PressTrigger(new ConditionalPair(upCondition, setTargetAction(()->(target+change))),new ConditionalPair(downCondition, setTargetAction(()->(target-change))));
+        public ConditionalAction triggeredDynamicAction(Condition upCondition, Condition downCondition, double change){
+            return new ConditionalAction(new ConditionalPair(upCondition, setTargetAction(()->(target+change))),new ConditionalPair(downCondition, setTargetAction(()->(target-change))));
         }
         public PressTrigger triggeredFSMAction(Condition upCondition, Condition downCondition, double...targets){
             return new PressTrigger(new ConditionalPair(upCondition, upwardFSMAction(targets)),new ConditionalPair(downCondition, downwardFSMAction(targets)));
@@ -337,6 +340,9 @@ public abstract class Components {
         public PressTrigger triggeredSetPowerAction(Condition condition, double power){
             return new PressTrigger(new ConditionalPair(condition, new SetPowerAction(power)));
         }
+        public ConditionalAction triggeredDynamicPowerAction(Condition upCondition, Condition downCondition, double change){
+            return new ConditionalAction(new ConditionalPair(upCondition, setPowerAction(()->(part.getPower()+change))),new ConditionalPair(downCondition, setPowerAction(()->(part.getPower()-change))));
+        }
         public PressTrigger triggeredTogglePowerAction(Condition condition, double power1, double power2){
             return new PressTrigger(new ConditionalPair(condition, togglePowerAction(power1,power2)));
         }
@@ -384,19 +390,35 @@ public abstract class Components {
     }
     public static class BotServo extends Actuator<Servo>{
         public double RANGE;
-        public double currPos;
+        private double currCommandedPos;
         @SafeVarargs
         public BotServo(String name, Function<Actuator<Servo>, Double> getCurrentPosition, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues, Servo.Direction direction, double range, String[] controlFuncKeys, ArrayList<ControlFunction<Actuator<Servo>>>... controlFuncs) {
             super(name, Servo.class, getCurrentPosition, maxTargetFunc, minTargetFunc, errorTol, defaultTimeout, keyPositionKeys, keyPositionValues, controlFuncKeys, controlFuncs);
             this.RANGE=range;
             part.setDirection(direction);
         }
+        @SafeVarargs
+        public BotServo(String name, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, double servoSpeed, String[] keyPositionKeys, double[] keyPositionValues, Servo.Direction direction, double range, String[] controlFuncKeys, ArrayList<ControlFunction<Actuator<Servo>>>... controlFuncs) {
+            super(name, Servo.class, new TimeBasedLocalizers.ServoTimeBasedLocalizer(servoSpeed)::getCurrentPosition, maxTargetFunc, minTargetFunc, 0, Double.POSITIVE_INFINITY, keyPositionKeys, keyPositionValues, controlFuncKeys, controlFuncs);
+            this.RANGE=range;
+            part.setDirection(direction);
+        }
         public void setPosition(double position){
-            currPos=position;
-            part.setPosition(currPos);
+            currCommandedPos=position;
+            part.setPosition(currCommandedPos);
         }
         public double getPosition() {
-            return currPos;
+            return currCommandedPos;
+        }
+    }
+    public static class CRBotServo extends CRActuator<CRServo>{
+        @SafeVarargs
+        public CRBotServo(String name, Function<Actuator<CRServo>, Double> getCurrentPosition, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues, DcMotorSimple.Direction direction, String[] controlFuncKeys, ArrayList<ControlFunction<Actuator<CRServo>>>... controlFuncs) {
+            super(name, CRServo.class, getCurrentPosition, maxTargetFunc, minTargetFunc, errorTol, defaultTimeout, keyPositionKeys, keyPositionValues, direction, controlFuncKeys, controlFuncs);
+        }
+        @SafeVarargs
+        public CRBotServo(String name, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, double servoSpeed, String[] keyPositionKeys, double[] keyPositionValues, DcMotorSimple.Direction direction, String[] controlFuncKeys, ArrayList<ControlFunction<Actuator<CRServo>>>... controlFuncs) {
+            super(name, CRServo.class, new TimeBasedLocalizers.CRTimeBasedLocalizer(servoSpeed)::getCurrentPosition, maxTargetFunc, minTargetFunc, 0, Double.POSITIVE_INFINITY, keyPositionKeys, keyPositionValues, direction, controlFuncKeys, controlFuncs);
         }
     }
 }

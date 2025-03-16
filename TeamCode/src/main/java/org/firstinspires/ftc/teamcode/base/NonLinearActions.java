@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.base;
 
+import static org.firstinspires.ftc.teamcode.base.Components.timer;
+
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.Procedure;
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.ReturningFunc;
 
@@ -76,7 +78,7 @@ public abstract class NonLinearActions {
         }
     }
     public abstract static class CompoundAction extends NonLinearAction{
-        public NonLinearSequentialAction sequence;
+        public NonLinearAction sequence;
         @Override
         boolean runProcedure() {
             if (isStart){
@@ -106,9 +108,23 @@ public abstract class NonLinearActions {
         @Override
         boolean runProcedure() {
             if (isStart && timeout!=Double.POSITIVE_INFINITY){
-                startTime=Components.timer.time();
+                startTime= timer.time();
             }
-            return !condition.call() && (Components.timer.time()-startTime)<timeout;
+            return !condition.call() && (timer.time()-startTime)<timeout;
+        }
+    }
+    public static class NonLinearSleepAction extends NonLinearAction{
+        double time;
+        double startTime;
+        public NonLinearSleepAction(double time){
+            this.time=time;
+        }
+        @Override
+        boolean runProcedure() {
+            if (isStart){
+                startTime = timer.time();
+            }
+            return (timer.time()-startTime)<time;
         }
     }
     public static class NonLinearSequentialAction extends NonLinearAction{
@@ -227,6 +243,76 @@ public abstract class NonLinearActions {
             else return false;
         }
     }
+    public static class PersistentConditionalAction extends PersistentNonLinearAction{
+        public LinkedHashMap<ReturningFunc<Boolean>,NonLinearAction> actions = new LinkedHashMap<>();
+        public NonLinearAction currentAction = null;
+        public PersistentConditionalAction(ConditionalPair...conditionalPairs){
+            for (ConditionalPair conditionalPair : conditionalPairs){
+                actions.put(conditionalPair.condition,conditionalPair.action);
+            }
+        }
+        @Override
+        boolean runProcedure() {
+            if (Objects.isNull(currentAction)){
+                for (ReturningFunc<Boolean> condition : actions.keySet()){
+                    if (condition.call()){
+                        currentAction = actions.get(condition);
+                        assert currentAction != null;
+                        currentAction.reset();
+                        break;
+                    }
+                }
+            }
+            if (Objects.nonNull(currentAction)){
+                if (!currentAction.run()){
+                    currentAction=null;
+                    return false;
+                }
+                else{
+                    return true;
+                }
+            }
+            else return false;
+        }
+    }
+    public static class SemiPersistentConditionalAction extends NonLinearAction{
+        public LinkedHashMap<ReturningFunc<Boolean>,NonLinearAction> actions = new LinkedHashMap<>();
+        public NonLinearAction currentAction = null;
+        public SemiPersistentConditionalAction(ConditionalPair...conditionalPairs){
+            for (ConditionalPair conditionalPair : conditionalPairs){
+                actions.put(conditionalPair.condition,conditionalPair.action);
+            }
+        }
+        @Override
+        boolean runProcedure() {
+            if (isStart){
+                for (ReturningFunc<Boolean> condition : actions.keySet()){
+                    if (condition.call()){
+                        if (actions.get(condition)!=currentAction) {
+                            if (Objects.nonNull(currentAction)) {
+                                currentAction.stop();
+                            }
+                            currentAction = actions.get(condition);
+                        }
+                        break;
+                    }
+                }
+                if (Objects.nonNull(currentAction)) {
+                    currentAction.reset();
+                }
+            }
+            if (Objects.nonNull(currentAction)){
+                if (!currentAction.run()){
+                    currentAction=null;
+                    return false;
+                }
+                else{
+                    return true;
+                }
+            }
+            else return false;
+        }
+    }
     public static class PressTrigger extends ConditionalAction{
         public boolean[] isPressed;
         public PressTrigger(ConditionalPair...conditionalPairs){
@@ -239,7 +325,7 @@ public abstract class NonLinearActions {
                         ()-> {
                             if (conditionalPairs[finalI].condition.call()){
                                 if (!isPressed[finalI]){
-                                    isPressed[finalI]=true;
+                                    Arrays.fill(isPressed, true);
                                     return true;
                                 }
                                 else return false;
@@ -253,5 +339,73 @@ public abstract class NonLinearActions {
                 );
             }
         }
+    }
+    public static class PersistentPressTrigger extends PersistentConditionalAction{
+        public boolean[] isPressed;
+        public PersistentPressTrigger(ConditionalPair...conditionalPairs){
+            super(conditionalPairs);
+            actions.clear();
+            isPressed=new boolean[conditionalPairs.length];
+            for (int i=0;i< conditionalPairs.length;i++){
+                int finalI = i;
+                actions.put(
+                        ()-> {
+                            if (conditionalPairs[finalI].condition.call()){
+                                if (!isPressed[finalI]){
+                                    Arrays.fill(isPressed, true);
+                                    return true;
+                                }
+                                else return false;
+                            }
+                            else{
+                                isPressed[finalI]=false;
+                                return false;
+                            }
+                        },
+                        conditionalPairs[i].action
+                );
+            }
+        }
+    }
+    public static class LoopForDuration extends NonLinearAction{
+        double startTime;
+        double duration;
+        NonLinearAction action;
+        public LoopForDuration(double duration, NonLinearAction action){
+            this.duration=duration;
+            this.action=action;
+        }
+        @Override
+        boolean runProcedure() {
+            if (isStart){
+                startTime=timer.time();
+                action.reset();
+            }
+            if ((timer.time()-startTime)<duration){
+                action.run();
+                return true;
+            }
+            else{
+                action.stop();
+                return false;
+            }
+        }
+    }
+    public abstract static class PathAction<E> extends NonLinearAction{
+        ReturningFunc<E> buildPath;
+        public E path;
+        public PathAction(ReturningFunc<E> buildPath){
+            this.buildPath=buildPath;
+        }
+        @Override
+        boolean runProcedure() {
+            if (isStart){
+                preBuild();
+                path=buildPath.call();
+            }
+            return followPath();
+        }
+        abstract boolean followPath();
+        public void preBuild() {}
     }
 }

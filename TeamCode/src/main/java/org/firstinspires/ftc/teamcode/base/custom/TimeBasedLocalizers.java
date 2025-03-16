@@ -4,9 +4,6 @@ import static org.firstinspires.ftc.teamcode.base.Components.timer;
 
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
-
-import org.firstinspires.ftc.teamcode.base.Components;
-import org.firstinspires.ftc.teamcode.base.Components.BotServo;
 import org.firstinspires.ftc.teamcode.base.Components.Actuator;
 public abstract class TimeBasedLocalizers{
     public static class ServoTimeBasedLocalizer{
@@ -16,7 +13,7 @@ public abstract class TimeBasedLocalizers{
         public ServoTimeBasedLocalizer(double servoSpeed){
             this.ABS_SERVO_SPEED=servoSpeed;
         }
-        public double getCurrentPosition(BotServo servo){
+        public double getCurrentPosition(Actuator<Servo> servo){
             if (!servo.notCommanded){
                 double servoSpeed = Math.signum(servo.part.getPosition()-prevPosition)*ABS_SERVO_SPEED;
                 double time=timer.time();
