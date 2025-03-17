@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.Condition;
 import java.util.stream.Collectors;
 
 public abstract class NonLinearActions {
@@ -324,11 +325,8 @@ public abstract class NonLinearActions {
                 actions.put(
                         ()-> {
                             if (conditionalPairs[finalI].condition.call()){
-                                if (!isPressed[finalI]){
-                                    Arrays.fill(isPressed, true);
-                                    return true;
-                                }
-                                else return false;
+                                Arrays.fill(isPressed, true);
+                                return !isPressed[finalI];
                             }
                             else{
                                 isPressed[finalI]=false;
@@ -351,11 +349,8 @@ public abstract class NonLinearActions {
                 actions.put(
                         ()-> {
                             if (conditionalPairs[finalI].condition.call()){
-                                if (!isPressed[finalI]){
-                                    Arrays.fill(isPressed, true);
-                                    return true;
-                                }
-                                else return false;
+                                Arrays.fill(isPressed, true);
+                                return !isPressed[finalI];
                             }
                             else{
                                 isPressed[finalI]=false;
@@ -407,5 +402,16 @@ public abstract class NonLinearActions {
         }
         abstract boolean followPath();
         public void preBuild() {}
+    }
+    public void runLoop(Condition loopCondition, NonLinearAction...actions){
+        while (loopCondition.call()){
+            for (NonLinearAction action : actions){
+                action.reset(); action.run();
+            }
+        }
+    }
+    public void runLinear(NonLinearAction...actions){
+        NonLinearAction sequence = new NonLinearSequentialAction(actions);
+        while (sequence.run()){}
     }
 }
