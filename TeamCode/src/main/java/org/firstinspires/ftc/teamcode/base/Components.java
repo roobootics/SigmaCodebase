@@ -70,7 +70,7 @@ public abstract class Components {
             runProcedure();
             isStart=false;
         }
-        abstract void runProcedure();
+        protected abstract void runProcedure();
         public void stopAndReset(){stopProcedure(); isStart=true;}
         public void stopProcedure(){}
     }
@@ -99,8 +99,8 @@ public abstract class Components {
                         String[] controlFuncKeys,
                         ArrayList<ControlFunction<Actuator<E>>>... controlFuncs){
             this.getCurrentPosition = ()->(getCurrentPosition.apply(this));
-            this.maxTargetFunc = maxTargetFunc;
-            this.minTargetFunc = minTargetFunc;
+            this.maxTargetFunc = ()->(maxTargetFunc.call()+offset);
+            this.minTargetFunc = ()->(minTargetFunc.call()+offset);
             this.defaultTimeout = defaultTimeout;
             this.part = Components.hardwareMap.get(type,name);
             for (int i=0;i<controlFuncKeys.length;i++) {
@@ -288,9 +288,11 @@ public abstract class Components {
         }
         public void setPower(double power){
             if (isPowered) {
-                this.power=power;
-                notCommanded = false;
-                part.setPower(power);
+                if (Math.abs(power-this.power)>0.05) {
+                    this.power = power;
+                    notCommanded = false;
+                    part.setPower(power);
+                }
             }
         }
         public class SetPowerAction extends InstantAction{
@@ -404,8 +406,10 @@ public abstract class Components {
             part.setDirection(direction);
         }
         public void setPosition(double position){
-            currCommandedPos=position;
-            part.setPosition(currCommandedPos);
+            if (position!=currCommandedPos){
+                currCommandedPos=position;
+                part.setPosition(currCommandedPos);
+            }
         }
         public double getPosition() {
             return currCommandedPos;
