@@ -17,7 +17,13 @@ public abstract class TimeBasedLocalizers{
             if (!servo.notCommanded){
                 double servoSpeed = Math.signum(servo.part.getPosition()-prevPosition)*ABS_SERVO_SPEED;
                 double time=timer.time();
-                prevPosition=prevPosition+servoSpeed*(time-prevTime);
+                double change = servoSpeed*(time-prevTime);
+                if (Math.signum(change)==1){
+                    prevPosition=Math.min(servo.part.getPosition(),prevPosition+change);
+                }
+                else if (Math.signum(change)==-1){
+                    prevPosition=Math.max(servo.part.getPosition(),prevPosition+change);
+                }
                 prevTime=time;
             }
             return prevPosition;
