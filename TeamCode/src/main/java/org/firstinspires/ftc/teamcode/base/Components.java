@@ -4,7 +4,6 @@ import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.HardwareDevice;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -37,7 +36,7 @@ public abstract class Components {
     static{
         timer.reset();
     }
-    public static HashMap<String,Actuator<? extends HardwareDevice>> actuators = new HashMap<>();
+    public static HashMap<String,Actuator<?>> actuators = new HashMap<>();
     public static class RunLoopRoutine<E extends RunConfiguration> extends NonLinearActions.ContinuousAction{
         public RunLoopRoutine() {
             super(()->{
@@ -60,7 +59,7 @@ public abstract class Components {
         abstract void initParts();
         abstract void updateTelemetry();
     }
-    public abstract static class ControlFunction<E extends Actuator<? extends HardwareDevice>>{
+    public abstract static class ControlFunction<E extends Actuator<?>>{
         public E parentActuator;
         public boolean isStart;
         public void registerToParent(E parentActuator){
@@ -74,7 +73,7 @@ public abstract class Components {
         public void stopAndReset(){stopProcedure(); isStart=true;}
         public void stopProcedure(){}
     }
-    public abstract static class Actuator<E extends HardwareDevice>{
+    public abstract static class Actuator<E>{
         public E part;
         double target;
         public double instantTarget;
