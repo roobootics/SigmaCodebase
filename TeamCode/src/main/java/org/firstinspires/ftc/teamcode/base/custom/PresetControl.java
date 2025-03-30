@@ -2,6 +2,9 @@ package org.firstinspires.ftc.teamcode.base.custom;
 
 import static org.firstinspires.ftc.teamcode.base.Components.timer;
 
+import com.qualcomm.robotcore.hardware.Servo;
+
+import org.firstinspires.ftc.teamcode.base.Components;
 import org.firstinspires.ftc.teamcode.base.Components.ControlFunction;
 import org.firstinspires.ftc.teamcode.base.Components.CRActuator;
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.ReturningFunc;
@@ -42,6 +45,12 @@ public abstract class PresetControl {
             );
             previousError=parentActuator.instantTarget-currentPosition;
             prevLoopTime=timer.time();
+        }
+    }
+    public static class ServoControl extends ControlFunction<Components.Actuator<Servo>>{
+        @Override
+        protected void runProcedure() {
+            parentActuator.part.setPosition(parentActuator.instantTarget);
         }
     }
 }

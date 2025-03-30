@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.base;
 
+import static org.firstinspires.ftc.teamcode.base.Components.actuators;
 import static org.firstinspires.ftc.teamcode.base.Components.timer;
 
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.Procedure;
@@ -94,6 +95,18 @@ public abstract class NonLinearActions {
 
 
 
+    public static class RunLoopRoutine<E extends Components.RunConfiguration> extends NonLinearActions.ContinuousAction{
+        public RunLoopRoutine() {
+            super(()->{
+                for (Components.Actuator<?> actuator : actuators.values()){
+                    actuator.setTarget(actuator.target);
+                    actuator.runControl();
+                    actuator.newTarget=false;
+                }
+                E.singleton.updateTelemetry();
+            });
+        }
+    }
     public static class SleepUntilTrue extends NonLinearAction{
         public ReturningFunc<Boolean> condition;
         public double timeout;
