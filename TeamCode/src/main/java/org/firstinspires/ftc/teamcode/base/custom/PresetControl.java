@@ -47,7 +47,7 @@ public abstract class PresetControl {
             prevLoopTime=timer.time();
         }
     }
-    public static class ServoControl extends ControlFunction<Components.Actuator<Servo>>{
+    public static class ServoControl extends ControlFunction<Components.BotServo>{
         @Override
         protected void runProcedure() {
             parentActuator.part.setPosition(parentActuator.instantTarget);
