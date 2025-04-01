@@ -2,10 +2,9 @@ package org.firstinspires.ftc.teamcode.base.custom;
 
 import static org.firstinspires.ftc.teamcode.base.Components.timer;
 
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.teamcode.base.Components.BotServo;
-import org.firstinspires.ftc.teamcode.base.Components.Actuator;
+import org.firstinspires.ftc.teamcode.base.Components.CRActuator;
 public abstract class TimeBasedLocalizers{
     public static class ServoTimeBasedLocalizer{
         public double ABS_SERVO_SPEED;
@@ -30,14 +29,14 @@ public abstract class TimeBasedLocalizers{
             return prevPosition;
         }
     }
-    public static class CRTimeBasedLocalizer{
+    public static class CRTimeBasedLocalizer<E extends CRActuator<?>>{
         public double ABS_SERVO_SPEED;
         public double prevPosition;
         public double prevTime;
         public CRTimeBasedLocalizer(double servoSpeed){
             this.ABS_SERVO_SPEED=servoSpeed;
         }
-        public double getCurrentPosition(Actuator<? extends DcMotorSimple> actuator){
+        public double getCurrentPosition(E actuator){
             double servoSpeed = actuator.part.getPower()*ABS_SERVO_SPEED;
             double time=timer.time();
             prevPosition=prevPosition+servoSpeed*(time-prevTime);

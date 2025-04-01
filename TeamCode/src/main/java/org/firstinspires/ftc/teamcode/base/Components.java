@@ -72,12 +72,13 @@ public abstract class Components {
             public FuncRegister(T instance, Function<T, Double> getCurrentPosition,String[] controlFuncKeys, ArrayList<ControlFunction<T>>... controlFuncs){
                 Actuator.this.getCurrentPosition = ()->(positionConversion.apply(getCurrentPosition.apply(instance)));
                 for (int i=0;i<controlFuncKeys.length;i++) {
-                    for (ControlFunction<? super T> func : controlFuncs[i]) {
+                    for (ControlFunction<T> func : controlFuncs[i]) {
                         func.registerToParent(instance);
                     }
                     controlFuncsMap.put(controlFuncKeys[i],controlFuncs[i]);
                 }
-                currControlFuncKey=controlFuncKeys[0];
+                controlFuncsMap.put("controlOff",new ArrayList<>());
+                currControlFuncKey="controlOff";
                 defaultControlKey=controlFuncKeys[0];
             }
         }
@@ -88,9 +89,7 @@ public abstract class Components {
         public boolean newTarget=false;
         public ReturningFunc<Double> maxTargetFunc;
         public ReturningFunc<Double> minTargetFunc;
-        public boolean controlOn = false;
         public String currControlFuncKey;
-        public HashMap<String,ArrayList<ControlFunction<Actuator<E>>>> controlFuncsMap = new HashMap<>();
         public ReturningFunc<Double> getCurrentPosition;
         public double errorTol;
         double offset;
@@ -142,17 +141,15 @@ public abstract class Components {
             setTarget(target);
         }
         public void runControl(){
-            if (controlOn) {
-                for (ControlFunction<? extends Actuator<E>> func : Objects.requireNonNull(controlFuncsMap.get(currControlFuncKey))) {
-                    func.run();
-                }
+            for (ControlFunction<? extends Actuator<E>> func : Objects.requireNonNull(this.funcRegister.controlFuncsMap.get(currControlFuncKey))) {
+                func.run();
             }
         }
         public double getPos(String key){
             return Objects.requireNonNull(keyPositions.get(key));
         }
         public void switchControl(String key){
-            for (ControlFunction<?> func: Objects.requireNonNull(controlFuncsMap.get(currControlFuncKey))){
+            for (ControlFunction<?> func: Objects.requireNonNull(this.funcRegister.controlFuncsMap.get(currControlFuncKey))){
                 func.stopAndReset();
             }
             currControlFuncKey=key;
@@ -420,7 +417,7 @@ public abstract class Components {
         @SafeVarargs
         public CRBotServo(String name, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, double servoSpeed, String[] keyPositionKeys, double[] keyPositionValues, DcMotorSimple.Direction direction, String[] controlFuncKeys, ArrayList<ControlFunction<CRBotServo>>... controlFuncs) {
             super(name, CRServo.class, maxTargetFunc, minTargetFunc, 0, Double.POSITIVE_INFINITY, keyPositionKeys, keyPositionValues, direction);
-            this.funcRegister=new FuncRegister<CRBotServo>(this, new TimeBasedLocalizers.CRTimeBasedLocalizer(servoSpeed)::getCurrentPosition, controlFuncKeys, controlFuncs);
+            this.funcRegister=new FuncRegister<CRBotServo>(this, new TimeBasedLocalizers.CRTimeBasedLocalizer<CRBotServo>(servoSpeed)::getCurrentPosition, controlFuncKeys, controlFuncs);
         }
     }
 }
