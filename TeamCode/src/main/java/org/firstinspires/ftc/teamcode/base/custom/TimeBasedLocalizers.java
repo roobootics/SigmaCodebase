@@ -15,14 +15,14 @@ public abstract class TimeBasedLocalizers{
         }
         public double getCurrentPosition(BotServo servo){
             if (!servo.notCommanded){
-                double servoSpeed = Math.signum(servo.part.getPosition()-prevPosition)*ABS_SERVO_SPEED;
+                double servoSpeed = Math.signum(servo.parts[0].getPosition()-prevPosition)*ABS_SERVO_SPEED;
                 double time=timer.time();
                 double change = servoSpeed*(time-prevTime);
                 if (Math.signum(change)==1){
-                    prevPosition=Math.min(servo.part.getPosition(),prevPosition+change);
+                    prevPosition=Math.min(servo.parts[0].getPosition(),prevPosition+change);
                 }
                 else if (Math.signum(change)==-1){
-                    prevPosition=Math.max(servo.part.getPosition(),prevPosition+change);
+                    prevPosition=Math.max(servo.parts[0].getPosition(),prevPosition+change);
                 }
                 prevTime=time;
             }
@@ -37,7 +37,7 @@ public abstract class TimeBasedLocalizers{
             this.ABS_SERVO_SPEED=servoSpeed;
         }
         public double getCurrentPosition(E actuator){
-            double servoSpeed = actuator.part.getPower()*ABS_SERVO_SPEED;
+            double servoSpeed = actuator.parts[0].getPower()*ABS_SERVO_SPEED;
             double time=timer.time();
             prevPosition=prevPosition+servoSpeed*(time-prevTime);
             prevTime=time;

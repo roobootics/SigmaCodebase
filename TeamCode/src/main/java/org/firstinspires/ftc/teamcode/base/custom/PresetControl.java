@@ -48,7 +48,7 @@ public abstract class PresetControl {
     public static class ServoControl extends ControlFunction<BotServo>{
         @Override
         protected void runProcedure() {
-            parentActuator.part.setPosition(parentActuator.instantTarget);
+            parentActuator.setPosition(parentActuator.instantTarget);
         }
     }
 }
