@@ -7,41 +7,67 @@ import org.firstinspires.ftc.teamcode.base.Components.ControlFunction;
 import org.firstinspires.ftc.teamcode.base.Components.CRActuator;
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.ReturningFunc;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+
 public abstract class PresetControl {
     public static class PIDF<E extends CRActuator<?>> extends ControlFunction<E>{
+        public static class PIDFConstants{
+            public double kP;
+            public double kI;
+            public double kD;
+            public double kF;
+            public ReturningFunc<Double> feedForwardFunc;
+            public PIDFConstants(double kP, double kI, double kD, double kF, ReturningFunc<Double> feedForwardFunc){
+                this.kP=kP;
+                this.kI=kI;
+                this.kD=kD;
+                this.kF=kF;
+                this.feedForwardFunc = feedForwardFunc;
+            }
+            public PIDFConstants(double kP, double kI, double kD){
+                this.kP=kP;
+                this.kI=kI;
+                this.kD=kD;
+                this.kF=0;
+                this.feedForwardFunc = ()->(0.0);
+            }
+        }
         public double kP;
         public double kI;
         public double kD;
         public double kF;
-        public double integralSum;
-        public double previousError;
+        public double[] integralSums;
+        public double[] previousErrors;
         public double prevLoopTime;
         public ReturningFunc<Double> feedForwardFunc;
-        public PIDF(double kP, double kI, double kD, double kF, ReturningFunc<Double> feedForwardFunc){
-            this.kP=kP;
-            this.kI=kI;
-            this.kD=kD;
-            this.kF=kF;
-            this.feedForwardFunc = feedForwardFunc;
+        public ArrayList<PIDFConstants> constants;
+        public PIDF(PIDFConstants...constants){
+            this.constants=new ArrayList<>(Arrays.asList(constants));
         }
-        public PIDF(double kP, double kI, double kD){
-            this.kP=kP;
-            this.kI=kI;
-            this.kD=kD;
-            this.kF=0;
-            this.feedForwardFunc = ()->(0.0);
+        @Override
+        public void registerToParent(E actuator){
+            super.registerToParent(actuator);
+            if (actuator.parts.length>this.constants.size()){
+                for (int i=0;i<actuator.parts.length-this.constants.size();i++){
+                    constants.add(constants.get(constants.size()-1));
+                }
+            }
         }
         @Override
         protected void runProcedure() {
-            double currentPosition = parentActuator.getCurrentPosition();
-            integralSum += parentActuator.getTarget()-currentPosition;
-            parentActuator.setPower(
-                    kP * parentActuator.instantTarget-currentPosition +
-                    kI * integralSum * timer.time()-prevLoopTime +
-                    kD * ((parentActuator.instantTarget-currentPosition)-previousError)/(timer.time()-prevLoopTime) +
-                    kF * feedForwardFunc.call()
-            );
-            previousError=parentActuator.instantTarget-currentPosition;
+            for (int i=0;i<parentActuator.parts.length;i++){
+                double currentPosition = parentActuator.getCurrentPosition(i);
+                integralSums[i] += parentActuator.getTarget()-currentPosition;
+                parentActuator.setPower(
+                        kP * parentActuator.instantTarget-currentPosition +
+                        kI * integralSums[i] * timer.time()-prevLoopTime +
+                        kD * ((parentActuator.instantTarget-currentPosition)-previousErrors[i])/(timer.time()-prevLoopTime) +
+                        kF * feedForwardFunc.call(),
+                        parentActuator.parts[i]
+                );
+                previousErrors[i]=parentActuator.instantTarget-currentPosition;
+            }
             prevLoopTime=timer.time();
         }
     }
