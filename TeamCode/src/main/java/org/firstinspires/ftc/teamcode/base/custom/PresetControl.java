@@ -33,14 +33,9 @@ public abstract class PresetControl {
                 this.feedForwardFunc = ()->(0.0);
             }
         }
-        public double kP;
-        public double kI;
-        public double kD;
-        public double kF;
         public double[] integralSums;
         public double[] previousErrors;
         public double prevLoopTime;
-        public ReturningFunc<Double> feedForwardFunc;
         public ArrayList<PIDFConstants> constants;
         public PIDF(PIDFConstants...constants){
             this.constants=new ArrayList<>(Arrays.asList(constants));
@@ -60,10 +55,10 @@ public abstract class PresetControl {
                 double currentPosition = parentActuator.getCurrentPosition(i);
                 integralSums[i] += parentActuator.getTarget()-currentPosition;
                 parentActuator.setPower(
-                        kP * parentActuator.instantTarget-currentPosition +
-                        kI * integralSums[i] * timer.time()-prevLoopTime +
-                        kD * ((parentActuator.instantTarget-currentPosition)-previousErrors[i])/(timer.time()-prevLoopTime) +
-                        kF * feedForwardFunc.call(),
+                        constants.get(i).kP * parentActuator.instantTarget-currentPosition +
+                                constants.get(i).kI * integralSums[i] * timer.time()-prevLoopTime +
+                                constants.get(i).kD * ((parentActuator.instantTarget-currentPosition)-previousErrors[i])/(timer.time()-prevLoopTime) +
+                                constants.get(i).kF * constants.get(i).feedForwardFunc.call(),
                         parentActuator.parts[i]
                 );
                 previousErrors[i]=parentActuator.instantTarget-currentPosition;
