@@ -70,9 +70,8 @@ public abstract class Components {
             public HashMap<String,ArrayList<ControlFunction<T>>> controlFuncsMap = new HashMap<>();
             @SafeVarargs
             public FuncRegister(T instance, Function<E, Double> getCurrentPosition,String[] controlFuncKeys, ArrayList<ControlFunction<T>>... controlFuncs){
-                for (int i=0;i<Actuator.this.parts.length;i++){
-                    int finalI = i;
-                    Actuator.this.getCurrentPositions[i] = ()->(positionConversion.apply(getCurrentPosition.apply(parts[finalI])));
+                for (String name: Actuator.this.partNames){
+                    Actuator.this.getCurrentPositions.put(name,()->(positionConversion.apply(getCurrentPosition.apply(parts.get(name)))));
                 }
 
                 for (int i=0;i<controlFuncKeys.length;i++) {
@@ -87,14 +86,14 @@ public abstract class Components {
             }
         }
         public FuncRegister<?> funcRegister;
-        public E[] parts;
+        public HashMap<String,E> parts;
         double target;
         public double instantTarget;
         public boolean newTarget=false;
         public ReturningFunc<Double> maxTargetFunc;
         public ReturningFunc<Double> minTargetFunc;
         public String currControlFuncKey;
-        public ReturningFunc<Double>[] getCurrentPositions;
+        public HashMap<String,ReturningFunc<Double>> getCurrentPositions;
         public double errorTol;
         double offset;
         public double defaultTimeout;
@@ -102,15 +101,17 @@ public abstract class Components {
         public String defaultControlKey;
         boolean isPowered = true;
         public String name;
+        public String[] partNames;
         public Function<Double,Double> positionConversion = (Double pos)->(pos);
         public Function<Double,Double> positionConversionInverse = (Double pos)->(pos);
-        public Actuator(String name, Class<E> type,
-                        String[] names,
+        public Actuator(String actuatorName, Class<E> type,
+                        String[] partNames,
                         ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc,
                         double errorTol, double defaultTimeout,
                         String[] keyPositionKeys,
                         double[] keyPositionValues){
-            this.name=name;
+            this.name=actuatorName;
+            this.partNames=partNames;
             this.maxTargetFunc = ()->(maxTargetFunc.call()+offset);
             this.minTargetFunc = ()->(minTargetFunc.call()+offset);
             this.defaultTimeout = defaultTimeout;
@@ -118,8 +119,8 @@ public abstract class Components {
             for (int i=0; i<keyPositionKeys.length; i++){
                 keyPositions.put(keyPositionKeys[i],keyPositionValues[i]);
             }
-            for (int i=0;i<names.length;i++){
-                this.parts[i]=Components.hardwareMap.get(type,names[i]);
+            for (String name:partNames){
+                this.parts.put(name,Components.hardwareMap.get(type,name));
             }
             actuators.put(name,this);
         }
@@ -135,15 +136,15 @@ public abstract class Components {
         public double getTarget(){
             return target;
         }
-        public double getCurrentPosition(int partIndex){
-            return getCurrentPositions[partIndex].call();
+        public double getCurrentPosition(String name){
+            return Objects.requireNonNull(getCurrentPositions.get(name)).call();
         }
         public double getCurrentPosition(){
             double avg = 0;
-            for (ReturningFunc<Double> func: getCurrentPositions){
+            for (ReturningFunc<Double> func: getCurrentPositions.values()){
                 avg+=func.call();
             }
-            return avg/getCurrentPositions.length;
+            return avg/getCurrentPositions.values().size();
         }
         public void setOffset(double offset){
             this.offset=offset;
@@ -286,16 +287,23 @@ public abstract class Components {
     }
     public abstract static class CRActuator<E extends DcMotorSimple> extends Actuator<E>{
         double power;
-        public CRActuator(String name, Class<E> type, String[] names, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues,
+        ReturningFunc<Double> maxPowerFunc;
+        ReturningFunc<Double> minPowerFunc;
+        public CRActuator(String name, Class<E> type, String[] names, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, ReturningFunc<Double> maxPowerFunc, ReturningFunc<Double> minPowerFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues,
                           DcMotorSimple.Direction[] directions) {
             super(name, type, names, maxTargetFunc, minTargetFunc, errorTol, defaultTimeout, keyPositionKeys, keyPositionValues);
+            this.maxPowerFunc=maxPowerFunc;
+            this.minPowerFunc=minPowerFunc;
             for (int i=0;i<directions.length;i++){
-                parts[i].setDirection(directions[i]);
+                Objects.requireNonNull(parts.get(names[i])).setDirection(directions[i]);
             }
             this.target=0;
         }
-        public void setPower(double power, E part){
+        public void setPower(double power, String name){
             if (isPowered){
+                power=Math.max(Math.min(power, maxPowerFunc.call()), minPowerFunc.call());
+                E part = parts.get(name);
+                assert part != null;
                 if (Math.abs(power-part.getPower())>0.05) {
                     part.setPower(power);
                 }
@@ -303,9 +311,10 @@ public abstract class Components {
         }
         public void setPower(double power){
             if (isPowered) {
+                power=Math.max(Math.min(power, maxPowerFunc.call()), minPowerFunc.call());
                 if (Math.abs(power-this.power)>0.05) {
                     this.power = power;
-                    for (E part:parts){
+                    for (E part:parts.values()){
                         part.setPower(power);
                     }
                 }
@@ -359,7 +368,7 @@ public abstract class Components {
             return new PressTrigger(new ConditionalPair(condition, new SetPowerAction(power)));
         }
         public ConditionalAction triggeredDynamicPowerAction(Condition upCondition, Condition downCondition, double change){
-            return new ConditionalAction(new ConditionalPair(upCondition, setPowerAction(()->(parts[0].getPower()+change))),new ConditionalPair(downCondition, setPowerAction(()->(parts[0].getPower()-change))));
+            return new ConditionalAction(new ConditionalPair(upCondition, setPowerAction(()->(power+change))),new ConditionalPair(downCondition, setPowerAction(()->(power-change))));
         }
         public PressTrigger triggeredTogglePowerAction(Condition condition, double power1, double power2){
             return new PressTrigger(new ConditionalPair(condition, togglePowerAction(power1,power2)));
@@ -374,9 +383,9 @@ public abstract class Components {
     public static class BotMotor extends CRActuator<DcMotorEx>{
         public boolean isStallResetting;
         @SafeVarargs
-        public BotMotor(String name, String[] names, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues, DcMotorSimple.Direction[] directions, String[] controlFuncKeys, ArrayList<ControlFunction<BotMotor>>... controlFuncs) {
-            super(name, DcMotorEx.class, names, maxTargetFunc, minTargetFunc, errorTol, defaultTimeout, keyPositionKeys, keyPositionValues, directions);
-            for (DcMotorEx part:parts){
+        public BotMotor(String name, String[] names, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, ReturningFunc<Double> maxPowerFunc, ReturningFunc<Double> minPowerFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues, DcMotorSimple.Direction[] directions, String[] controlFuncKeys, ArrayList<ControlFunction<BotMotor>>... controlFuncs) {
+            super(name, DcMotorEx.class, names, maxTargetFunc, minTargetFunc, maxPowerFunc,minPowerFunc,errorTol, defaultTimeout, keyPositionKeys, keyPositionValues, directions);
+            for (DcMotorEx part:parts.values()){
                 part.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 part.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             }
@@ -393,8 +402,8 @@ public abstract class Components {
                     isStallResetting=true;
                     setPower(-0.2);
                 }
-                if (parts[0].getCurrent(CurrentUnit.AMPS)>1.5){
-                    for (DcMotorEx part:parts){
+                if (Objects.requireNonNull(parts.get(partNames[0])).getCurrent(CurrentUnit.AMPS)>1.5){
+                    for (DcMotorEx part:parts.values()){
                         part.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
                         part.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
                     }
@@ -421,7 +430,7 @@ public abstract class Components {
             this.positionConversion=(Double pos)->(pos*range);
             this.positionConversionInverse=(Double pos)->(pos*range);
             for (int i=0;i<directions.length;i++){
-                parts[i].setDirection(directions[i]);
+                Objects.requireNonNull(parts.get(names[i])).setDirection(directions[i]);
             }
             this.funcRegister=new FuncRegister<BotServo>(this,getCurrentPosition,controlFuncKeys, controlFuncs);
         }
@@ -429,21 +438,25 @@ public abstract class Components {
             this(name,names,new TimeBasedLocalizers.ServoTimeBasedLocalizer(servoSpeed)::getCurrentPosition,maxTargetFunc,minTargetFunc,0.01,0,keyPositionKeys,keyPositionValues,directions,range,new String[]{"setPos"},new ArrayList<>(Collections.singleton(new ServoControl())));
         }
         public void setPosition(double position){
+            position=Math.max(minTargetFunc.call(),Math.min(position, maxTargetFunc.call()));
             if (isPowered && position!=currCommandedPos){
                 currCommandedPos=position;
-                for (Servo part:parts){part.setPosition(positionConversionInverse.apply(position));}
+                for (Servo part:parts.values()){part.setPosition(positionConversionInverse.apply(position));}
             }
+        }
+        public double getPosition(){
+            return currCommandedPos;
         }
     }
     public static class CRBotServo extends CRActuator<CRServo>{
         @SafeVarargs
-        public CRBotServo(String name, String[] names, Function<CRServo, Double> getCurrentPosition, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues, DcMotorSimple.Direction[] directions, String[] controlFuncKeys, ArrayList<ControlFunction<CRBotServo>>... controlFuncs) {
-            super(name, CRServo.class, names, maxTargetFunc, minTargetFunc, errorTol, defaultTimeout, keyPositionKeys, keyPositionValues, directions);
+        public CRBotServo(String name, String[] names, Function<CRServo, Double> getCurrentPosition, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, ReturningFunc<Double> maxPowerFunc, ReturningFunc<Double> minPowerFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues, DcMotorSimple.Direction[] directions, String[] controlFuncKeys, ArrayList<ControlFunction<CRBotServo>>... controlFuncs) {
+            super(name, CRServo.class, names, maxTargetFunc, minTargetFunc, maxPowerFunc, minPowerFunc, errorTol, defaultTimeout, keyPositionKeys, keyPositionValues, directions);
             this.funcRegister=new FuncRegister<CRBotServo>(this, getCurrentPosition, controlFuncKeys, controlFuncs);
         }
         @SafeVarargs
-        public CRBotServo(String name, String[] names, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, double servoSpeed, String[] keyPositionKeys, double[] keyPositionValues, DcMotorSimple.Direction[] directions, String[] controlFuncKeys, ArrayList<ControlFunction<CRBotServo>>... controlFuncs) {
-            super(name, CRServo.class, names, maxTargetFunc, minTargetFunc, 0, Double.POSITIVE_INFINITY, keyPositionKeys, keyPositionValues, directions);
+        public CRBotServo(String name, String[] names, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, ReturningFunc<Double> maxPowerFunc, ReturningFunc<Double> minPowerFunc, double servoSpeed, String[] keyPositionKeys, double[] keyPositionValues, DcMotorSimple.Direction[] directions, String[] controlFuncKeys, ArrayList<ControlFunction<CRBotServo>>... controlFuncs) {
+            super(name, CRServo.class, names, maxTargetFunc, minTargetFunc, maxPowerFunc,minPowerFunc,0, Double.POSITIVE_INFINITY, keyPositionKeys, keyPositionValues, directions);
             this.funcRegister=new FuncRegister<CRBotServo>(this, new TimeBasedLocalizers.CRTimeBasedLocalizer<CRServo>(servoSpeed)::getCurrentPosition, controlFuncKeys, controlFuncs);
         }
     }

@@ -43,23 +43,23 @@ public abstract class PresetControl {
         @Override
         public void registerToParent(E actuator){
             super.registerToParent(actuator);
-            if (actuator.parts.length>this.constants.size()){
-                for (int i=0;i<actuator.parts.length-this.constants.size();i++){
+            if (actuator.parts.values().size()>this.constants.size()){
+                for (int i=0;i<actuator.parts.values().size()-this.constants.size();i++){
                     constants.add(constants.get(constants.size()-1));
                 }
             }
         }
         @Override
         protected void runProcedure() {
-            for (int i=0;i<parentActuator.parts.length;i++){
-                double currentPosition = parentActuator.getCurrentPosition(i);
+            for (int i=0;i<parentActuator.partNames.length;i++){
+                double currentPosition = parentActuator.getCurrentPosition(parentActuator.partNames[i]);
                 integralSums[i] += parentActuator.getTarget()-currentPosition;
                 parentActuator.setPower(
                         constants.get(i).kP * parentActuator.instantTarget-currentPosition +
                                 constants.get(i).kI * integralSums[i] * timer.time()-prevLoopTime +
                                 constants.get(i).kD * ((parentActuator.instantTarget-currentPosition)-previousErrors[i])/(timer.time()-prevLoopTime) +
                                 constants.get(i).kF * constants.get(i).feedForwardFunc.call(),
-                        parentActuator.parts[i]
+                        parentActuator.partNames[i]
                 );
                 previousErrors[i]=parentActuator.instantTarget-currentPosition;
             }

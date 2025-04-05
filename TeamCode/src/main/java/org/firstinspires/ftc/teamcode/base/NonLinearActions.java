@@ -92,7 +92,10 @@ public abstract class NonLinearActions {
             sequence.stop();
         }
     }
-
+    public abstract static class LinearAction extends NonLinearAction{
+        @Override
+        public void reset(){}
+    }
 
 
     public static class RunLoopRoutine<E extends Components.RunConfiguration> extends NonLinearActions.ContinuousAction{
