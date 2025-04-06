@@ -66,26 +66,44 @@ public abstract class PresetControl {
             }
             prevLoopTime=timer.time();
         }
+        @Override
+        public void stopProcedure(){
+            parentActuator.setPower(0);
+        }
     }
     public static class MotionProfile<E extends Actuator<?>> extends ControlFunction<E>{
-        public boolean newParams=true;
+        boolean newParams=true;
+        boolean resetting=true;
+        double firstResetPosition;
         public double currentMaxVelocity;
         public double currentAcceleration;
         public double MAX_VELOCITY;
         public double ACCELERATION;
+        public double profileStartTime;
         public MotionProfile(double maxVelocity, double acceleration){
             this.MAX_VELOCITY=maxVelocity;
             this.ACCELERATION=acceleration;
         }
         @Override
         protected void runProcedure() {
-            if (parentActuator.newTarget||newParams){
-
+            if (parentActuator.newTarget||newParams||isStart){
+                resetting=true;
+                profileStartTime=timer.time();
+                firstResetPosition=parentActuator.getCurrentPosition();
+            }
+            else if (resetting){
+                resetting=false;
+                createMotionProfile();
+            }
+            else{
+                parentActuator.instantTarget=runMotionProfileOnce();
             }
         }
         public void createMotionProfile(){}
-        public void runMotionProfileOnce(){}
+        public double runMotionProfileOnce(){return 0;}
     }
+
+
     public static class ServoControl extends ControlFunction<BotServo>{
         @Override
         protected void runProcedure() {
