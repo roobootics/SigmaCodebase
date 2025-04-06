@@ -72,7 +72,7 @@ public abstract class PresetControl {
             parentActuator.setPower(0);
         }
     }
-    public static class MotionProfile<E extends Actuator<?>> extends ControlFunction<E>{
+    public static class TrapezoidalMotionProfile<E extends Actuator<?>> extends ControlFunction<E>{
         boolean newParams=true;
         boolean resetting=true;
         double firstResetPosition;
@@ -90,13 +90,19 @@ public abstract class PresetControl {
         public double profileStartTime;
         public double profileStartPos;
         double startVelocity;
-        public MotionProfile(double maxVelocity, double acceleration){
+        public TrapezoidalMotionProfile(double maxVelocity, double acceleration){
             this.MAX_VELOCITY=maxVelocity;
             this.ACCELERATION=acceleration;
+        }
+        public void setNewParams(double maxVelocity, double acceleration){
+            this.MAX_VELOCITY=maxVelocity;
+            this.ACCELERATION=acceleration;
+            newParams=true;
         }
         @Override
         protected void runProcedure() {
             if (parentActuator.newTarget||newParams||isStart){
+                newParams=false;
                 resetting=true;
                 profileStartTime=timer.time();
                 firstResetPosition=parentActuator.getCurrentPosition();
