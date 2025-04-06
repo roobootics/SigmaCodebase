@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.base.custom;
 
 import static org.firstinspires.ftc.teamcode.base.Components.timer;
 
+import org.firstinspires.ftc.teamcode.base.Components;
 import org.firstinspires.ftc.teamcode.base.Components.Actuator;
 import org.firstinspires.ftc.teamcode.base.Components.BotServo;
 import org.firstinspires.ftc.teamcode.base.Components.ControlFunction;
@@ -77,9 +78,18 @@ public abstract class PresetControl {
         double firstResetPosition;
         public double currentMaxVelocity;
         public double currentAcceleration;
+        public double currentDeceleration;
+        public double accelDT;
+        public double decelDT;
+        public double cruiseDT;
+        public double accelDistance;
+        public double decelDistance;
+        public double cruiseDistance;
         public double MAX_VELOCITY;
         public double ACCELERATION;
         public double profileStartTime;
+        public double profileStartPos;
+        double startVelocity;
         public MotionProfile(double maxVelocity, double acceleration){
             this.MAX_VELOCITY=maxVelocity;
             this.ACCELERATION=acceleration;
@@ -94,13 +104,81 @@ public abstract class PresetControl {
             else if (resetting){
                 resetting=false;
                 createMotionProfile();
+                parentActuator.instantTarget=runMotionProfileOnce();
             }
             else{
                 parentActuator.instantTarget=runMotionProfileOnce();
             }
         }
-        public void createMotionProfile(){}
-        public double runMotionProfileOnce(){return 0;}
+        public void createMotionProfile(){
+            profileStartPos=parentActuator.getCurrentPosition();
+            double distance = parentActuator.getTarget() - profileStartPos;
+            if (distance!=0) {
+                if (parentActuator instanceof Components.BotMotor) {
+                    startVelocity = ((Components.BotMotor) parentActuator).getVelocity();
+                } else {
+                    startVelocity = (profileStartPos - firstResetPosition) / (timer.time() - profileStartTime);
+                }
+                currentMaxVelocity = MAX_VELOCITY * Math.signum(distance);
+                currentAcceleration = ACCELERATION * Math.signum(currentMaxVelocity - startVelocity);
+                currentDeceleration = -ACCELERATION * Math.signum(distance);
+                accelDT = (currentMaxVelocity - startVelocity) / currentAcceleration;
+                decelDT = (0 - currentMaxVelocity) / currentDeceleration;
+                accelDistance = startVelocity * accelDT + 0.5 * currentAcceleration * accelDT * accelDT;
+                decelDistance = currentMaxVelocity * decelDT + 0.5 * currentDeceleration * decelDT * decelDT;
+                cruiseDistance = Math.abs(distance - accelDistance - decelDistance) * Math.signum(currentMaxVelocity);
+                if (Math.abs(accelDistance + cruiseDistance + decelDistance) > Math.abs(distance)) {
+                    double halfExceededDistance = (distance - accelDistance - decelDistance) / 2;
+                    accelDistance = accelDistance + halfExceededDistance;
+                    accelDT = Math.max(
+                            (-startVelocity + Math.sqrt(Math.abs(startVelocity * startVelocity + 2 * currentAcceleration * accelDistance))) / (currentAcceleration),
+                            (-startVelocity - Math.sqrt(Math.abs(startVelocity * startVelocity + 2 * currentAcceleration * accelDistance))) / (currentAcceleration)
+                    );
+                    currentMaxVelocity = currentAcceleration * accelDT + startVelocity;
+                    decelDistance = decelDistance + halfExceededDistance;
+                    decelDT = Math.max(
+                            (-currentMaxVelocity + Math.sqrt(Math.abs(currentMaxVelocity * currentMaxVelocity + 2 * currentDeceleration * decelDistance))) / (currentDeceleration),
+                            (-currentMaxVelocity - Math.sqrt(Math.abs(currentMaxVelocity * currentMaxVelocity + 2 * currentDeceleration * decelDistance))) / (currentDeceleration)
+                    );
+                }
+                cruiseDistance = Math.abs(distance - accelDistance - decelDistance) * Math.signum(currentMaxVelocity);
+                cruiseDT = cruiseDistance / currentMaxVelocity;
+                if (Double.isNaN(accelDT) || Double.isNaN(accelDistance) || Double.isNaN(decelDT) || Double.isNaN(decelDistance) || Double.isNaN(cruiseDT) || Double.isNaN(cruiseDistance) || accelDT < 0 || decelDT < 0 || cruiseDT < 0) {
+                    accelDT = 0;
+                    cruiseDT = 0;
+                    decelDT = 0;
+                    accelDistance = 0;
+                    cruiseDistance = 0;
+                    decelDistance = 0;
+                }
+            }
+            else{
+                accelDT=0;
+                cruiseDT=0;
+                decelDT=0;
+                accelDistance=0;
+                cruiseDistance=0;
+                decelDistance=0;
+            }
+        }
+        public double runMotionProfileOnce(){
+            double elapsedTime = timer.time()-profileStartTime;
+            if (elapsedTime < accelDT){
+                return profileStartPos + startVelocity * elapsedTime + 0.5 * currentAcceleration * elapsedTime*elapsedTime;
+            }
+            else if (elapsedTime < accelDT+cruiseDT){
+                double cruiseCurrentDT = elapsedTime - accelDT;
+                return profileStartPos + accelDistance + currentMaxVelocity * cruiseCurrentDT;
+            }
+
+            else if (elapsedTime < accelDT+cruiseDT+decelDT){
+                double decelCurrentDT = elapsedTime - accelDT - cruiseDT;
+                return profileStartPos + accelDistance + cruiseDistance + currentMaxVelocity * decelCurrentDT + 0.5 * currentDeceleration * decelCurrentDT*decelCurrentDT;
+            }
+            else{
+                return parentActuator.getTarget();
+            }
+        }
     }
 
 
@@ -110,16 +188,19 @@ public abstract class PresetControl {
             parentActuator.setPosition(parentActuator.instantTarget);
         }
     }
-    public static class CRControl<E extends CRActuator<?>> extends ControlFunction<E>{
-        double power;
-        public CRControl(double power){
-            this.power=power;
+    public static class CRBangBangControl<E extends CRActuator<?>> extends ControlFunction<E>{
+        ReturningFunc<Double> powerFunc;
+        public CRBangBangControl(double power){
+            this.powerFunc=()->(power);
+        }
+        public CRBangBangControl(ReturningFunc<Double> powerFunc){
+            this.powerFunc=powerFunc;
         }
         @Override
         protected void runProcedure() {
             double currentPosition = parentActuator.getCurrentPosition();
             if (Math.abs(parentActuator.instantTarget-currentPosition)>1){
-                parentActuator.setPower(power*Math.signum(parentActuator.instantTarget-currentPosition));
+                parentActuator.setPower(powerFunc.call()*Math.signum(parentActuator.instantTarget-currentPosition));
             }
         }
     }

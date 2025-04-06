@@ -20,6 +20,8 @@ import org.firstinspires.ftc.teamcode.base.NonLinearActions.ConditionalAction;
 import org.firstinspires.ftc.teamcode.base.NonLinearActions.PressTrigger;
 import org.firstinspires.ftc.teamcode.base.NonLinearActions.ConditionalPair;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Target;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -41,6 +43,8 @@ public abstract class Components {
         timer.reset();
     }
     public static HashMap<String,Actuator<?>> actuators = new HashMap<>();
+    @Target(ElementType.METHOD)
+    public @interface Actuate{}
     public abstract static class RunConfiguration{
         public static RunConfiguration singleton;
         public static void initialize(HardwareMap hardwareMap, Telemetry telemetry){
@@ -49,7 +53,15 @@ public abstract class Components {
             singleton.initParts();
         }
         abstract void initParts();
-        abstract void updateTelemetry();
+        public void updateTelemetry(){
+            for (Actuator<?> actuator: actuators.values()){
+                telemetry.addData(actuator.name+" target", actuator.target);
+                telemetry.addData(actuator.name+" instant target", actuator.instantTarget);
+                telemetry.addData(actuator.name+" current position", actuator.getCurrentPosition());
+                telemetry.addData("","");
+            }
+            telemetry.update();
+        }
     }
     public abstract static class ControlFunction<E extends Actuator<?>>{
         public E parentActuator;
@@ -104,6 +116,8 @@ public abstract class Components {
         public String[] partNames;
         public Function<Double,Double> positionConversion = (Double pos)->(pos);
         public Function<Double,Double> positionConversionInverse = (Double pos)->(pos);
+        public boolean timeBasedLocalization;
+        public boolean dynamicTargetBoundaries=false;
         public Actuator(String actuatorName, Class<E> type,
                         String[] partNames,
                         ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc,
@@ -289,6 +303,7 @@ public abstract class Components {
         HashMap<String,Double> powers;
         ReturningFunc<Double> maxPowerFunc;
         ReturningFunc<Double> minPowerFunc;
+        public boolean dynamicPowerBoundaries=false;
         public CRActuator(String name, Class<E> type, String[] names, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, ReturningFunc<Double> maxPowerFunc, ReturningFunc<Double> minPowerFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues,
                           DcMotorSimple.Direction[] directions) {
             super(name, type, names, maxTargetFunc, minTargetFunc, errorTol, defaultTimeout, keyPositionKeys, keyPositionValues);
@@ -300,6 +315,7 @@ public abstract class Components {
             }
             this.target=0;
         }
+        @Actuate
         public void setPower(double power, String name){
             if (isPowered){
                 power=Math.max(Math.min(power, maxPowerFunc.call()), minPowerFunc.call());
@@ -308,18 +324,23 @@ public abstract class Components {
                 if (Math.abs(power-part.getPower())>0.05) {
                     part.setPower(power);
                     powers.put(name,power);
+                    if (timeBasedLocalization){
+                        getCurrentPosition(name);
+                    }
                 }
             }
         }
+        @Actuate
         public void setPower(double power){
             if (isPowered) {
                 power=Math.max(Math.min(power, maxPowerFunc.call()), minPowerFunc.call());
                 if (Math.abs(power-Objects.requireNonNull(this.powers.get(partNames[0])))>0.05) {
                     for (String name:partNames) {
                         this.powers.put(name,power);
+                        Objects.requireNonNull(parts.get(name)).setPower(power);
                     }
-                    for (E part:parts.values()){
-                        part.setPower(power);
+                    if (timeBasedLocalization){
+                        getCurrentPosition();
                     }
                 }
             }
@@ -395,6 +416,13 @@ public abstract class Components {
             }
             this.funcRegister=new FuncRegister<BotMotor>(this,(DcMotorEx motor)->((double) motor.getCurrentPosition()),controlFuncKeys, controlFuncs);
         }
+        public double getVelocity(){
+            double avg=0;
+            for (DcMotorEx part:parts.values()){
+                avg+=part.getVelocity();
+            }
+            return avg/parts.size();
+        }
         public class StallResetAction extends NonLinearAction {
             double resetPosition;
             public StallResetAction(double resetPosition) {
@@ -441,11 +469,15 @@ public abstract class Components {
         public BotServo(String name, String[] names, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, double servoSpeed, String[] keyPositionKeys, double[] keyPositionValues, Servo.Direction[] directions, double range) {
             this(name,names,new TimeBasedLocalizers.ServoTimeBasedLocalizer(servoSpeed)::getCurrentPosition,maxTargetFunc,minTargetFunc,0.01,0,keyPositionKeys,keyPositionValues,directions,range,new String[]{"setPos"},new ArrayList<>(Collections.singleton(new ServoControl())));
         }
+        @Actuate
         public void setPosition(double position){
             position=Math.max(minTargetFunc.call(),Math.min(position, maxTargetFunc.call()));
             if (isPowered && position!=currCommandedPos){
                 currCommandedPos=position;
                 for (Servo part:parts.values()){part.setPosition(positionConversionInverse.apply(position));}
+                if (timeBasedLocalization){
+                    getCurrentPosition();
+                }
             }
         }
         public double getPosition(){

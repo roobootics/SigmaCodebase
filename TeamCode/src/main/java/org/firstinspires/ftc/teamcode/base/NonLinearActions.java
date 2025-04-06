@@ -96,12 +96,14 @@ public abstract class NonLinearActions {
             sequence.stop();
         }
     }
-    public static class RunLoopRoutine<E extends Components.RunConfiguration> extends NonLinearActions.ContinuousAction{
+    public static class RunLoopRoutine<E extends Components.RunConfiguration> extends ContinuousAction{
         public RunLoopRoutine() {
             super(()->{
                 for (Components.Actuator<?> actuator : actuators.values()){
-                    actuator.setTarget(actuator.target);
-                    if (actuator instanceof Components.CRActuator){
+                    if (actuator.dynamicTargetBoundaries){
+                        actuator.setTarget(actuator.target);
+                    }
+                    if (actuator instanceof Components.CRActuator && ((Components.CRActuator<?>) actuator).dynamicPowerBoundaries){
                         Components.CRActuator<?> castedActuator=((Components.CRActuator<?>) actuator);
                         castedActuator.setPower(Objects.requireNonNull(castedActuator.powers.get(castedActuator.partNames[0])));
                     }
@@ -419,19 +421,18 @@ public abstract class NonLinearActions {
     }
     public abstract static class SleepUntilPose extends SleepUntilTrue{
         public static ReturningFunc<double[]> getPose;
-        public SleepUntilPose(double x, double y, double heading, double timeout) {
+        public SleepUntilPose(double x, double y, double heading, double poseDistance, double headingDistance, double timeout) {
             super(()->{
                 double[] pose= getPose.call();
-                return x==pose[0]&&
-                y==pose[1]&&
-                heading==pose[2];
+                return Math.sqrt((x-pose[0])*(x-pose[0])+(y-pose[1])*(y-pose[1]))<poseDistance &&
+                        Math.abs(heading-pose[2])<headingDistance;
             }, timeout);
-        }public SleepUntilPose(double x, double y, double heading) {
+        }
+        public SleepUntilPose(double x, double y, double heading, double poseDistance,double headingDistance) {
             super(()->{
                 double[] pose= getPose.call();
-                return x==pose[0]&&
-                        y==pose[1]&&
-                        heading==pose[2];
+                return Math.sqrt((x-pose[0])*(x-pose[0])+(y-pose[1])*(y-pose[1]))<poseDistance &&
+                        Math.abs(heading-pose[2])<headingDistance;
             });
         }
     }
