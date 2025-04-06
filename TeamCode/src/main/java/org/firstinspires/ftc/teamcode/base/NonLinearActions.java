@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.base;
 
 import static org.firstinspires.ftc.teamcode.base.Components.actuators;
+import static org.firstinspires.ftc.teamcode.base.Components.telemetry;
 import static org.firstinspires.ftc.teamcode.base.Components.timer;
 
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.Procedure;
@@ -97,6 +98,22 @@ public abstract class NonLinearActions {
         }
     }
     public static class RunLoopRoutine<E extends Components.RunConfiguration> extends ContinuousAction{
+        public RunLoopRoutine(Procedure updateTelemetry) {
+            super(()->{
+                for (Components.Actuator<?> actuator : actuators.values()){
+                    if (actuator.dynamicTargetBoundaries){
+                        actuator.setTarget(actuator.target);
+                    }
+                    if (actuator instanceof Components.CRActuator && ((Components.CRActuator<?>) actuator).dynamicPowerBoundaries){
+                        Components.CRActuator<?> castedActuator=((Components.CRActuator<?>) actuator);
+                        castedActuator.setPower(Objects.requireNonNull(castedActuator.powers.get(castedActuator.partNames[0])));
+                    }
+                    actuator.runControl();
+                    actuator.newTarget=false;
+                }
+                updateTelemetry.call();
+            });
+        }
         public RunLoopRoutine() {
             super(()->{
                 for (Components.Actuator<?> actuator : actuators.values()){
@@ -110,7 +127,13 @@ public abstract class NonLinearActions {
                     actuator.runControl();
                     actuator.newTarget=false;
                 }
-                E.singleton.updateTelemetry();
+                for (Components.Actuator<?> actuator: actuators.values()){
+                    telemetry.addData(actuator.name+" target", actuator.target);
+                    telemetry.addData(actuator.name+" instant target", actuator.instantTarget);
+                    telemetry.addData(actuator.name+" current position", actuator.getCurrentPosition());
+                    telemetry.addData("","");
+                }
+                telemetry.update();
             });
         }
     }
@@ -453,14 +476,14 @@ public abstract class NonLinearActions {
         abstract boolean followPath();
         public void preBuild() {}
     }
-    public void runLoop(Condition loopCondition, NonLinearAction...actions){
+    public static void runLoop(Condition loopCondition, NonLinearAction...actions){
         while (loopCondition.call()){
             for (NonLinearAction action : actions){
                 action.reset(); action.run();
             }
         }
     }
-    public void runLinear(NonLinearAction...actions){
+    public static void runLinear(NonLinearAction...actions){
         NonLinearAction sequence = new NonLinearSequentialAction(actions);
         while (sequence.run()){}
     }

@@ -53,15 +53,6 @@ public abstract class Components {
             singleton.initParts();
         }
         abstract void initParts();
-        public void updateTelemetry(){
-            for (Actuator<?> actuator: actuators.values()){
-                telemetry.addData(actuator.name+" target", actuator.target);
-                telemetry.addData(actuator.name+" instant target", actuator.instantTarget);
-                telemetry.addData(actuator.name+" current position", actuator.getCurrentPosition());
-                telemetry.addData("","");
-            }
-            telemetry.update();
-        }
     }
     public abstract static class ControlFunction<E extends Actuator<?>>{
         public E parentActuator;

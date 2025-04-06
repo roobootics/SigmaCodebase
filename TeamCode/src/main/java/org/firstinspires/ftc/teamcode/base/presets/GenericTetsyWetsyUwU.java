@@ -1,10 +1,70 @@
 package org.firstinspires.ftc.teamcode.base.presets;
 
+import static org.firstinspires.ftc.teamcode.base.Components.actuators;
+
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
+import org.firstinspires.ftc.teamcode.base.Components;
+
+import org.firstinspires.ftc.teamcode.base.NonLinearActions;
+
+import java.util.ArrayList;
+import java.util.Objects;
+
 public class GenericTetsyWetsyUwU extends LinearOpMode {
+    public int selectedActuatorIndex = 0;
+    public ArrayList<String> nonMotorActuatorNames;
     @Override
     public void runOpMode(){
+        //run<RunConfiguration>()
+    }
+    public void updateTelemetry(){
+        telemetry.addLine(nonMotorActuatorNames.get(selectedActuatorIndex));
+        telemetry.addData("target", Objects.requireNonNull(actuators.get(nonMotorActuatorNames.get(selectedActuatorIndex))).getTarget());
+        telemetry.update();
+    }
+    public void shiftSelectionRight(){
+        if (selectedActuatorIndex<nonMotorActuatorNames.size()-1){
+            selectedActuatorIndex+=1;
+        }
+    }
+    public void shiftSelectionLeft(){
+        if (selectedActuatorIndex>0){
+            selectedActuatorIndex-=1;
+        }
+    }
+    public <E extends Components.RunConfiguration> void run(){
+        E.initialize(hardwareMap,telemetry);
+        for (String name:actuators.keySet()){
+            if (!(actuators.get(name) instanceof Components.BotMotor)){
+                Objects.requireNonNull(actuators.get(name)).switchControl(Objects.requireNonNull(actuators.get(name)).defaultControlKey);
+                nonMotorActuatorNames.add(name);
+            }
+        }
+        NonLinearActions.ConditionalPair[] conditions = new NonLinearActions.ConditionalPair[nonMotorActuatorNames.size()];
+        for (int i=0;i<nonMotorActuatorNames.size();i++){
+            int finalI = i;
+            conditions[i]=new NonLinearActions.ConditionalPair(
+                    ()->(selectedActuatorIndex==finalI),
+                    Objects.requireNonNull(actuators.get(nonMotorActuatorNames.get(i))).triggeredDynamicAction(()->(gamepad1.left_bumper),()->(gamepad1.right_bumper),1)
+            );
+        }
 
+        waitForStart();
+        NonLinearActions.runLoop(
+                this::opModeIsActive,
+                new NonLinearActions.RunLoopRoutine<E>(this::updateTelemetry),
+                new NonLinearActions.PressTrigger(new NonLinearActions.ConditionalPair(
+                        ()->(gamepad1.dpad_left),
+                        new NonLinearActions.InstantAction(this::shiftSelectionLeft)
+                )),
+                new NonLinearActions.PressTrigger(new NonLinearActions.ConditionalPair(
+                        ()->(gamepad1.dpad_right),
+                        new NonLinearActions.InstantAction(this::shiftSelectionRight)
+                )),
+                new NonLinearActions.ConditionalAction(
+                        conditions
+                )
+        );
     }
 }
