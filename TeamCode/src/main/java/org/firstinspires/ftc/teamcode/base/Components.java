@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -70,9 +71,9 @@ public abstract class Components {
     }
     public abstract static class Actuator<E extends HardwareDevice>{
         public class FuncRegister<T extends Actuator<E>>{
-            public HashMap<String,ArrayList<ControlFunction<T>>> controlFuncsMap = new HashMap<>();
+            public HashMap<String, List<ControlFunction<T>>> controlFuncsMap = new HashMap<>();
             @SafeVarargs
-            public FuncRegister(T instance, Function<E, Double> getCurrentPosition,String[] controlFuncKeys, ArrayList<ControlFunction<T>>... controlFuncs){
+            public FuncRegister(T instance, Function<E, Double> getCurrentPosition,String[] controlFuncKeys, List<ControlFunction<T>>... controlFuncs){
                 for (String name: Actuator.this.partNames){
                     Actuator.this.getCurrentPositions.put(name,()->(positionConversion.apply(getCurrentPosition.apply(parts.get(name)))));
                 }

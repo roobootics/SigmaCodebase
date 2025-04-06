@@ -13,18 +13,18 @@ import java.util.Objects;
 
 public class GenericTetsyWetsyUwU extends LinearOpMode {
     public int selectedActuatorIndex = 0;
-    public ArrayList<String> nonMotorActuatorNames;
+    public ArrayList<String> actuatorNames;
     @Override
     public void runOpMode(){
         //run<RunConfiguration>()
     }
     public void updateTelemetry(){
-        telemetry.addLine(nonMotorActuatorNames.get(selectedActuatorIndex));
-        telemetry.addData("target", Objects.requireNonNull(actuators.get(nonMotorActuatorNames.get(selectedActuatorIndex))).getTarget());
+        telemetry.addLine(actuatorNames.get(selectedActuatorIndex));
+        telemetry.addData("position", Objects.requireNonNull(actuators.get(actuatorNames.get(selectedActuatorIndex))).getCurrentPosition());
         telemetry.update();
     }
     public void shiftSelectionRight(){
-        if (selectedActuatorIndex<nonMotorActuatorNames.size()-1){
+        if (selectedActuatorIndex<actuatorNames.size()-1){
             selectedActuatorIndex+=1;
         }
     }
@@ -38,15 +38,15 @@ public class GenericTetsyWetsyUwU extends LinearOpMode {
         for (String name:actuators.keySet()){
             if (!(actuators.get(name) instanceof Components.BotMotor)){
                 Objects.requireNonNull(actuators.get(name)).switchControl(Objects.requireNonNull(actuators.get(name)).defaultControlKey);
-                nonMotorActuatorNames.add(name);
             }
+            actuatorNames.add(name);
         }
-        NonLinearActions.ConditionalPair[] conditions = new NonLinearActions.ConditionalPair[nonMotorActuatorNames.size()];
-        for (int i=0;i<nonMotorActuatorNames.size();i++){
+        NonLinearActions.ConditionalPair[] conditions = new NonLinearActions.ConditionalPair[actuatorNames.size()];
+        for (int i=0;i<actuatorNames.size();i++){
             int finalI = i;
             conditions[i]=new NonLinearActions.ConditionalPair(
                     ()->(selectedActuatorIndex==finalI),
-                    Objects.requireNonNull(actuators.get(nonMotorActuatorNames.get(i))).triggeredDynamicAction(()->(gamepad1.left_bumper),()->(gamepad1.right_bumper),1)
+                    Objects.requireNonNull(actuators.get(actuatorNames.get(i))).triggeredDynamicAction(()->(gamepad1.left_bumper),()->(gamepad1.right_bumper),1)
             );
         }
 
