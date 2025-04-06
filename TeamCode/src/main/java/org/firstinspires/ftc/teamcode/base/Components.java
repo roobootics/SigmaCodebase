@@ -286,7 +286,7 @@ public abstract class Components {
         }
     }
     public abstract static class CRActuator<E extends DcMotorSimple> extends Actuator<E>{
-        double power;
+        HashMap<String,Double> powers;
         ReturningFunc<Double> maxPowerFunc;
         ReturningFunc<Double> minPowerFunc;
         public CRActuator(String name, Class<E> type, String[] names, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, ReturningFunc<Double> maxPowerFunc, ReturningFunc<Double> minPowerFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues,
@@ -294,8 +294,9 @@ public abstract class Components {
             super(name, type, names, maxTargetFunc, minTargetFunc, errorTol, defaultTimeout, keyPositionKeys, keyPositionValues);
             this.maxPowerFunc=maxPowerFunc;
             this.minPowerFunc=minPowerFunc;
-            for (int i=0;i<directions.length;i++){
+            for (int i=0;i<names.length;i++){
                 Objects.requireNonNull(parts.get(names[i])).setDirection(directions[i]);
+                powers.put(names[i],0.0);
             }
             this.target=0;
         }
@@ -306,14 +307,17 @@ public abstract class Components {
                 assert part != null;
                 if (Math.abs(power-part.getPower())>0.05) {
                     part.setPower(power);
+                    powers.put(name,power);
                 }
             }
         }
         public void setPower(double power){
             if (isPowered) {
                 power=Math.max(Math.min(power, maxPowerFunc.call()), minPowerFunc.call());
-                if (Math.abs(power-this.power)>0.05) {
-                    this.power = power;
+                if (Math.abs(power-Objects.requireNonNull(this.powers.get(partNames[0])))>0.05) {
+                    for (String name:partNames) {
+                        this.powers.put(name,power);
+                    }
                     for (E part:parts.values()){
                         part.setPower(power);
                     }
@@ -336,29 +340,29 @@ public abstract class Components {
         }
         public SetPowerAction togglePowerAction(double power1, double power2){
             return new SetPowerAction(()->{
-                if (power==power1) return power2; else if (power==power2) return power1; else return this.power;
+                if (Objects.requireNonNull(powers.get(partNames[0]))==power1) return power2; else if (Objects.requireNonNull(powers.get(partNames[0]))==power2) return power1; else return Objects.requireNonNull(powers.get(partNames[0]));
             });
         }
-        public SetPowerAction upwardFSMPowerAction(double...powers){
-            Arrays.sort(powers);
+        public SetPowerAction upwardFSMPowerAction(double...powersList){
+            Arrays.sort(powersList);
             return setPowerAction(()->{
-                for (double power: powers){
-                    if (this.power<power){
+                for (double power: powersList){
+                    if (Objects.requireNonNull(powers.get(partNames[0]))<power){
                         return power;
                     }
                 }
-                return this.power;
+                return Objects.requireNonNull(powers.get(partNames[0]));
             });
         }
-        public SetPowerAction downwardFSMPowerAction(double...powers){
-            Arrays.sort(powers);
+        public SetPowerAction downwardFSMPowerAction(double...powersList){
+            Arrays.sort(powersList);
             return setPowerAction(()->{
-                for (int i = powers.length-1; i>=0; i--){
-                    if (this.power>powers[i]){
-                        return powers[i];
+                for (int i = powersList.length-1; i>=0; i--){
+                    if (Objects.requireNonNull(powers.get(partNames[0]))>powersList[i]){
+                        return powersList[i];
                     }
                 }
-                return this.power;
+                return Objects.requireNonNull(powers.get(partNames[0]));
             });
         }
         public PressTrigger triggeredSetPowerAction(Condition condition, ReturningFunc<Double> powerFunc){
@@ -368,7 +372,7 @@ public abstract class Components {
             return new PressTrigger(new ConditionalPair(condition, new SetPowerAction(power)));
         }
         public ConditionalAction triggeredDynamicPowerAction(Condition upCondition, Condition downCondition, double change){
-            return new ConditionalAction(new ConditionalPair(upCondition, setPowerAction(()->(power+change))),new ConditionalPair(downCondition, setPowerAction(()->(power-change))));
+            return new ConditionalAction(new ConditionalPair(upCondition, setPowerAction(()->(Objects.requireNonNull(powers.get(partNames[0]))+change))),new ConditionalPair(downCondition, setPowerAction(()->(Objects.requireNonNull(powers.get(partNames[0]))-change))));
         }
         public PressTrigger triggeredTogglePowerAction(Condition condition, double power1, double power2){
             return new PressTrigger(new ConditionalPair(condition, togglePowerAction(power1,power2)));

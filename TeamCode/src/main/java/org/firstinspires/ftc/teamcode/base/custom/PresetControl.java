@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.base.custom;
 
 import static org.firstinspires.ftc.teamcode.base.Components.timer;
 
+import org.firstinspires.ftc.teamcode.base.Components.Actuator;
 import org.firstinspires.ftc.teamcode.base.Components.BotServo;
 import org.firstinspires.ftc.teamcode.base.Components.ControlFunction;
 import org.firstinspires.ftc.teamcode.base.Components.CRActuator;
@@ -66,10 +67,42 @@ public abstract class PresetControl {
             prevLoopTime=timer.time();
         }
     }
+    public static class MotionProfile<E extends Actuator<?>> extends ControlFunction<E>{
+        public boolean newParams=true;
+        public double currentMaxVelocity;
+        public double currentAcceleration;
+        public double MAX_VELOCITY;
+        public double ACCELERATION;
+        public MotionProfile(double maxVelocity, double acceleration){
+            this.MAX_VELOCITY=maxVelocity;
+            this.ACCELERATION=acceleration;
+        }
+        @Override
+        protected void runProcedure() {
+            if (parentActuator.newTarget||newParams){
+
+            }
+        }
+        public void createMotionProfile(){}
+        public void runMotionProfileOnce(){}
+    }
     public static class ServoControl extends ControlFunction<BotServo>{
         @Override
         protected void runProcedure() {
             parentActuator.setPosition(parentActuator.instantTarget);
+        }
+    }
+    public static class CRControl<E extends CRActuator<?>> extends ControlFunction<E>{
+        double power;
+        public CRControl(double power){
+            this.power=power;
+        }
+        @Override
+        protected void runProcedure() {
+            double currentPosition = parentActuator.getCurrentPosition();
+            if (Math.abs(parentActuator.instantTarget-currentPosition)>1){
+                parentActuator.setPower(power*Math.signum(parentActuator.instantTarget-currentPosition));
+            }
         }
     }
 }

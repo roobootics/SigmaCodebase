@@ -79,30 +79,31 @@ public abstract class NonLinearActions {
             return action.call();
         }
     }
-    public abstract static class CompoundAction extends NonLinearAction{
+    public abstract static class CompoundAction extends NonLinearAction {
         public NonLinearAction sequence;
+
         @Override
         boolean runProcedure() {
-            if (isStart){
+            if (isStart) {
                 sequence.reset();
             }
             return sequence.run();
         }
-        @Override public void stopProcedure(){
+
+        @Override
+        public void stopProcedure() {
             sequence.stop();
         }
     }
-    public abstract static class LinearAction extends NonLinearAction{
-        @Override
-        public void reset(){}
-    }
-
-
     public static class RunLoopRoutine<E extends Components.RunConfiguration> extends NonLinearActions.ContinuousAction{
         public RunLoopRoutine() {
             super(()->{
                 for (Components.Actuator<?> actuator : actuators.values()){
                     actuator.setTarget(actuator.target);
+                    if (actuator instanceof Components.CRActuator){
+                        Components.CRActuator<?> castedActuator=((Components.CRActuator<?>) actuator);
+                        castedActuator.setPower(Objects.requireNonNull(castedActuator.powers.get(castedActuator.partNames[0])));
+                    }
                     actuator.runControl();
                     actuator.newTarget=false;
                 }
@@ -400,6 +401,24 @@ public abstract class NonLinearActions {
                 action.stop();
                 return false;
             }
+        }
+    }
+    public abstract static class SleepUntilPose extends SleepUntilTrue{
+        public static ReturningFunc<double[]> getPose;
+        public SleepUntilPose(double x, double y, double heading, double timeout) {
+            super(()->{
+                double[] pose= getPose.call();
+                return x==pose[0]&&
+                y==pose[1]&&
+                heading==pose[2];
+            }, timeout);
+        }public SleepUntilPose(double x, double y, double heading) {
+            super(()->{
+                double[] pose= getPose.call();
+                return x==pose[0]&&
+                        y==pose[1]&&
+                        heading==pose[2];
+            });
         }
     }
     public abstract static class PathAction<E> extends NonLinearAction{
