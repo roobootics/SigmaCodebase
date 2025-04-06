@@ -8,6 +8,7 @@ import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.ReturningFunc;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
@@ -109,6 +110,19 @@ public abstract class NonLinearActions {
                 }
                 E.singleton.updateTelemetry();
             });
+        }
+    }
+    public static class PowerOnCommand extends NonLinearAction{
+        public HashMap<String, Boolean> actuatorsCommanded;
+        @Override
+        boolean runProcedure() {
+            for (String key: actuators.keySet()){
+                if (Objects.requireNonNull(actuators.get(key)).newTarget&&Boolean.FALSE.equals(actuatorsCommanded.get(key))){
+                    Objects.requireNonNull(actuators.get(key)).switchControl(Objects.requireNonNull(actuators.get(key)).defaultControlKey);
+                    actuatorsCommanded.put(key,true);
+                }
+            }
+            return false;
         }
     }
     public static class SleepUntilTrue extends NonLinearAction{
