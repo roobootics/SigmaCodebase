@@ -8,7 +8,4 @@ public abstract class LambdaInterfaces {
         E call();
     }
     public interface Condition extends ReturningFunc<Boolean>{}
-    public interface AcceptingFunc<E>{
-        void call(E input);
-    }
 }

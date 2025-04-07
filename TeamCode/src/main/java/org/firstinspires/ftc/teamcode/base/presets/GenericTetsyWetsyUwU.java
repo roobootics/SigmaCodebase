@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.base.presets;
 import static org.firstinspires.ftc.teamcode.base.Components.actuators;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.base.Components;
 
@@ -10,7 +11,7 @@ import org.firstinspires.ftc.teamcode.base.NonLinearActions;
 
 import java.util.ArrayList;
 import java.util.Objects;
-
+@TeleOp
 public class GenericTetsyWetsyUwU extends LinearOpMode {
     public int selectedActuatorIndex = 0;
     public ArrayList<String> actuatorNames;
@@ -66,5 +67,6 @@ public class GenericTetsyWetsyUwU extends LinearOpMode {
                         conditions
                 )
         );
+        actuators.clear();
     }
 }

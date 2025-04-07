@@ -39,25 +39,25 @@ import org.firstinspires.ftc.teamcode.base.presets.TimeBasedLocalizers;
 public abstract class Components {
     public static HardwareMap hardwareMap;
     public static Telemetry telemetry;
-    public static ElapsedTime timer = new ElapsedTime();
+    public static ElapsedTime timer = new ElapsedTime(); //Central timer used by everything (e.g. sleep action, motion profile)
     static{
-        timer.reset();
+        timer.reset(); //Static variables are preserved between runs, so timer needs to be reset
     }
-    public static HashMap<String,Actuator<?>> actuators = new HashMap<>();
+    public static HashMap<String,Actuator<?>> actuators = new HashMap<>(); //Map of all actuators, each accessible through its name
     @Target(ElementType.METHOD)
-    public @interface Actuate{}
-    public abstract static class RunConfiguration{
-        public static RunConfiguration singleton;
-        public static void initialize(HardwareMap hardwareMap, Telemetry telemetry){
+    public @interface Actuate{} //Used to denote methods that actually move a part, like setPower or setPosition
+    public abstract static class RunConfiguration{ //Classes overriding RunConfiguration will have static fields that hold all the actuators for a build. Similar to Mr. Nayal's JSON files that held data on each component of a build.
+        public static RunConfiguration singleton; //Needed because the method initParts must be overridden, and static methods cannot be overridden, so it must be called through an instance
+        public static void initialize(HardwareMap hardwareMap, Telemetry telemetry){ //This is the method called in TeleOp classes, as it also provides hardwareMap and telemetry to the codebase
             Components.hardwareMap=hardwareMap;
             Components.telemetry=telemetry;
             singleton.initParts();
         }
-        abstract void initParts();
+        abstract void initParts(); //This is where the actuator instances are constructed and assigned to the static fields in the RunConfiguration
     }
-    public abstract static class ControlFunction<E extends Actuator<?>>{
-        public E parentActuator;
-        public boolean isStart;
+    public abstract static class ControlFunction<E extends Actuator<?>>{ //The subclasses of this are methods that are called to control actuators and get them to the target, such as PID or motion profiles. Each function works with a specific type of actuator. Multiple can run at once
+        public E parentActuator; //Each function has access to the actuator it runs on
+        public boolean isStart; //Indicates if the control function has just started running
         public void registerToParent(E parentActuator){
             this.parentActuator=parentActuator;
         }
@@ -65,17 +65,45 @@ public abstract class Components {
             runProcedure();
             isStart=false;
         }
-        protected abstract void runProcedure();
-        public void stopAndReset(){stopProcedure(); isStart=true;}
-        public void stopProcedure(){}
+        protected abstract void runProcedure(); //This method is where the control function does its job
+        public void stopAndReset(){stopProcedure(); isStart=true;} //The function can stop running if the control mode of the actuator is switched
+        public void stopProcedure(){} //Takes care of anything that needs to occur when the control function stops
     }
-    public abstract static class Actuator<E extends HardwareDevice>{
-        public class FuncRegister<T extends Actuator<E>>{
-            public HashMap<String, List<ControlFunction<T>>> controlFuncsMap = new HashMap<>();
+    public abstract static class Actuator<E extends HardwareDevice>{ //Actuators are enhanced hardware classes that have more state and functionality. Each Actuator instance is parametrized with a specific type, like DcMotorEx or Servo/.
+        public String name;
+        public HashMap<String,E> parts; public String[] partNames; //Since two hardware devices can be synchronized on one mechanism, Actuators can have multiple inner parts, each referenced by its hardwareMap name
+
+        double target;
+        public double instantTarget;
+        public boolean newTarget=false; //Set to true when setTarget is called. Set to false after the end of each loop.
+
+        double offset; //In case a part skips or something, this allows us to offset all the targets we set to compensate
+
+        public ReturningFunc<Double> maxTargetFunc;
+        public ReturningFunc<Double> minTargetFunc;
+        //Max and min targets. They are dynamic functions since the max position for an actuator may not be the same. An in-game extension limit may not apply based on the direction of the actuator, for example.
+        public double errorTol; //Error tolerance for when the actuator is commanded to a position
+        public double defaultTimeout; //Default time waited when an actuator is commanded to a position before ending the action.
+        public boolean isPowered = true;
+
+        public HashMap<String,Double> keyPositions = new HashMap<>(); //Stores key positions, like 'transferPosition,' etc.
+
+        public HashMap<String,ReturningFunc<Double>> getCurrentPositions; //Map of methods to get the current positions of each of the actuator's parts.
+        public FuncRegister<?> funcRegister;
+        public String currControlFuncKey;
+        public String defaultControlKey;
+        public Function<Double,Double> positionConversion = (Double pos)->(pos); //Indicates if you want to apply unit conversion on the getCurrentPosition method to return it in a different unit (e.g ticks to inches)
+        public Function<Double,Double> positionConversionInverse = (Double pos)->(pos);
+        public boolean timeBasedLocalization; //Indicates whether the getCurrentPosition method of the actuator calculates the position based on time as opposed to an encoder, which is important to know.
+        public boolean dynamicTargetBoundaries=false; //Indicates whether the max and min targets can change. Useful to know if they don't
+
+        public class FuncRegister<T extends Actuator<E>>{ //Registers functions such as control functions or functions to find the current position of the actuator to the actuator. Parametrized to the subclass of Actuator that is using it.
+            public HashMap<String, List<ControlFunction<T>>> controlFuncsMap = new HashMap<>(); //Map with lists of control functions paired with names.
             @SafeVarargs
-            public FuncRegister(T instance, Function<E, Double> getCurrentPosition,String[] controlFuncKeys, List<ControlFunction<T>>... controlFuncs){
+            public FuncRegister(T instance, Function<E, Double> getCurrentPosition, //The function to find the current position of the actuator accepts one of the actuator's parts
+                                String[] controlFuncKeys, List<ControlFunction<T>>... controlFuncs){
                 for (String name: Actuator.this.partNames){
-                    Actuator.this.getCurrentPositions.put(name,()->(positionConversion.apply(getCurrentPosition.apply(parts.get(name)))));
+                    Actuator.this.getCurrentPositions.put(name,()->(positionConversion.apply(getCurrentPosition.apply(parts.get(name))))); //The getCurrentPosition function is copied, one for each of the actuator's parts. Position conversion is also applied
                 }
 
                 for (int i=0;i<controlFuncKeys.length;i++) {
@@ -84,32 +112,11 @@ public abstract class Components {
                     }
                     controlFuncsMap.put(controlFuncKeys[i],controlFuncs[i]);
                 }
-                controlFuncsMap.put("controlOff",new ArrayList<>());
+                controlFuncsMap.put("controlOff",new ArrayList<>()); //Add a control mode without any control functions.
                 currControlFuncKey="controlOff";
                 defaultControlKey=controlFuncKeys[0];
             }
         }
-        public FuncRegister<?> funcRegister;
-        public HashMap<String,E> parts;
-        double target;
-        public double instantTarget;
-        public boolean newTarget=false;
-        public ReturningFunc<Double> maxTargetFunc;
-        public ReturningFunc<Double> minTargetFunc;
-        public String currControlFuncKey;
-        public HashMap<String,ReturningFunc<Double>> getCurrentPositions;
-        public double errorTol;
-        double offset;
-        public double defaultTimeout;
-        public HashMap<String,Double> keyPositions = new HashMap<>();
-        public String defaultControlKey;
-        boolean isPowered = true;
-        public String name;
-        public String[] partNames;
-        public Function<Double,Double> positionConversion = (Double pos)->(pos);
-        public Function<Double,Double> positionConversionInverse = (Double pos)->(pos);
-        public boolean timeBasedLocalization;
-        public boolean dynamicTargetBoundaries=false;
         public Actuator(String actuatorName, Class<E> type,
                         String[] partNames,
                         ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc,
@@ -126,7 +133,7 @@ public abstract class Components {
                 keyPositions.put(keyPositionKeys[i],keyPositionValues[i]);
             }
             for (String name:partNames){
-                this.parts.put(name,Components.hardwareMap.get(type,name));
+                this.parts.put(name,Components.hardwareMap.get(type,name)); //Can't do E.class instead of using the parameter 'type' because of generic type erasure
             }
             actuators.put(name,this);
         }
@@ -142,10 +149,10 @@ public abstract class Components {
         public double getTarget(){
             return target;
         }
-        public double getCurrentPosition(String name){
+        public double getCurrentPosition(String name){ //Gets the position of a specific part
             return Objects.requireNonNull(getCurrentPositions.get(name)).call();
         }
-        public double getCurrentPosition(){
+        public double getCurrentPosition(){ //Gets the avg position of all synchronized parts
             double avg = 0;
             for (ReturningFunc<Double> func: getCurrentPositions.values()){
                 avg+=func.call();
@@ -161,7 +168,7 @@ public abstract class Components {
                 func.run();
             }
         }
-        public double getPos(String key){
+        public double getPos(String key){ //Returns one of the key positions based on the inputted key
             return Objects.requireNonNull(keyPositions.get(key));
         }
         public void switchControl(String key){
@@ -291,8 +298,8 @@ public abstract class Components {
             return new PressTrigger(new ConditionalPair(upCondition, setOffsetAction(()->(offset+offsetChange))),new ConditionalPair(downCondition, setOffsetAction(()->(target-offsetChange))));
         }
     }
-    public abstract static class CRActuator<E extends DcMotorSimple> extends Actuator<E>{
-        HashMap<String,Double> powers;
+    public abstract static class CRActuator<E extends DcMotorSimple> extends Actuator<E>{ //Type of Actuator that works for continuous rotation parts, like DcMotorEx and CRServo
+        HashMap<String,Double> powers; //Stores the powers each of the parts are set to. Synchronized parts can have different powers because the load on one may be larger than on the other
         ReturningFunc<Double> maxPowerFunc;
         ReturningFunc<Double> minPowerFunc;
         public boolean dynamicPowerBoundaries=false;
@@ -430,8 +437,10 @@ public abstract class Components {
         }
         public class StallResetAction extends NonLinearAction {
             double resetPosition;
-            public StallResetAction(double resetPosition) {
+            double stallVolts;
+            public StallResetAction(double resetPosition, double stallVolts) {
                 this.resetPosition=resetPosition;
+                this.stallVolts=stallVolts;
             }
             @Override
             boolean runProcedure() {
@@ -439,7 +448,7 @@ public abstract class Components {
                     isStallResetting=true;
                     setPower(-0.2);
                 }
-                if (Objects.requireNonNull(parts.get(partNames[0])).getCurrent(CurrentUnit.AMPS)>1.5){
+                if (Objects.requireNonNull(parts.get(partNames[0])).getCurrent(CurrentUnit.AMPS)>stallVolts){
                     for (DcMotorEx part:parts.values()){
                         part.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
                         part.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -452,11 +461,11 @@ public abstract class Components {
                 return isStallResetting;
             }
         }
-        public StallResetAction stallResetAction(double resetPosition){
-            return new StallResetAction(resetPosition);
+        public StallResetAction stallResetAction(double resetPosition,double stallVolts){
+            return new StallResetAction(resetPosition,stallVolts);
         }
-        public PressTrigger triggeredStallResetAction(Condition condition, double resetPosition){
-            return new PressTrigger(new ConditionalPair(condition,stallResetAction(resetPosition)));
+        public PressTrigger triggeredStallResetAction(Condition condition, double resetPosition,double stallVolts){
+            return new PressTrigger(new ConditionalPair(condition,stallResetAction(resetPosition,stallVolts)));
         }
     }
     public static class BotServo extends Actuator<Servo>{
