@@ -197,7 +197,7 @@ public abstract class PresetControl { //Holds control functions that actuators c
         }
     }
     public static class CRBangBangControl<E extends CRActuator<?>> extends ControlFunction<E>{ //Likely will be used to get CRServos to their targets if they have no encoders with them
-        ReturningFunc<Double> powerFunc;
+        ReturningFunc<Double> powerFunc; //This control function moves the CRActuator to the target at a given power, which can change. That is stored here.
         public CRBangBangControl(double power){
             this.powerFunc=()->(power);
         }
