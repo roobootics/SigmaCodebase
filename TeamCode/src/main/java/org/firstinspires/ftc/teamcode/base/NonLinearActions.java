@@ -469,9 +469,9 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
             });
         }
     }
-    public abstract static class PathAction<E> extends NonLinearAction{ //Action for autonomous pathing. Must be subclassed to create an implementation for a specific autonomous library.
+    public abstract static class PathAction<E> extends NonLinearAction{ //Action for autonomous pathing. Must be subclassed to create an implementation for a specific autonomous library. Parameterized to the actual path object it is based off of.
         ReturningFunc<E> buildPath;
-        public E path;
+        public E path; //Stores the path this action follows. For RR it would be a TrajectoryAction, for Pedro it would be a PathChain
         public PathAction(ReturningFunc<E> buildPath){
             this.buildPath=buildPath;
         }

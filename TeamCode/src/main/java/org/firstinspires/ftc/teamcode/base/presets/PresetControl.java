@@ -12,7 +12,7 @@ import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.ReturningFunc;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-public abstract class PresetControl {
+public abstract class PresetControl { //Holds control functions that actuators can use. Note that more control functions, like other types of motion profiling, can be coded and used.
     public static class PIDF<E extends CRActuator<?>> extends ControlFunction<E>{
         public static class PIDFConstants{ //Stores PIDF coefficients
             public double kP;
