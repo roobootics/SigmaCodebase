@@ -4,6 +4,11 @@ import static org.firstinspires.ftc.teamcode.base.Components.actuators;
 import static org.firstinspires.ftc.teamcode.base.Components.telemetry;
 import static org.firstinspires.ftc.teamcode.base.Components.timer;
 
+import static org.firstinspires.ftc.teamcode.base.Components.BotMotor;
+
+import com.qualcomm.robotcore.hardware.IMU;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.Procedure;
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.ReturningFunc;
 
@@ -16,10 +21,10 @@ import java.util.Objects;
 import org.firstinspires.ftc.teamcode.base.LambdaInterfaces.Condition;
 import java.util.stream.Collectors;
 
-public abstract class NonLinearActions {
-    public abstract static class NonLinearAction{
-        public boolean isBusy = false;
-        public boolean isStart = true;
+public abstract class NonLinearActions { //Command-based (or action-based) system
+    public abstract static class NonLinearAction{ //Base class for any action
+        public boolean isBusy = false; //Indicates whether the action is active or not
+        public boolean isStart = true; //Actions know if they've just started running or not
         public void reset() {
             isStart=true;
         }
@@ -27,12 +32,12 @@ public abstract class NonLinearActions {
             isBusy = runProcedure();
             isStart=false;
             if (!isBusy){
-                reset();
+                reset(); //Auto-reset after action is completed or stopped.
             }
             return isBusy;
         }
-        abstract boolean runProcedure();
-        public void stopProcedure() {}
+        abstract boolean runProcedure(); //This is where one codes what the action does
+        public void stopProcedure() {} //This is where code is made for if the action is interrupted
         final public void stop(){
             if (isBusy) {
                 stopProcedure();
@@ -41,7 +46,10 @@ public abstract class NonLinearActions {
             }
         }
     }
-    public abstract static class PersistentNonLinearAction extends NonLinearAction{
+
+    //TEMPLATE ACTIONS
+
+    public abstract static class PersistentNonLinearAction extends NonLinearAction{ //NonLinearAction but it can't be reset if not completed
         @Override
         public void reset(){
             if (!isBusy){
@@ -49,7 +57,7 @@ public abstract class NonLinearActions {
             }
         }
     }
-    public static class InstantAction extends NonLinearAction{
+    public static class InstantAction extends NonLinearAction{ //Action that completes in one loop iteration
         public Procedure procedure;
         public InstantAction(Procedure procedure){
             this.procedure=procedure;
@@ -60,7 +68,7 @@ public abstract class NonLinearActions {
             return false;
         }
     }
-    public static class ContinuousAction extends NonLinearAction{
+    public static class ContinuousAction extends NonLinearAction{ //Action that constantly runs the same way each loop iteration
         public Procedure procedure;
         public ContinuousAction(Procedure procedure){
             this.procedure=procedure;
@@ -71,7 +79,7 @@ public abstract class NonLinearActions {
             return true;
         }
     }
-    public static class LambdaAction extends NonLinearAction{
+    public static class LambdaAction extends NonLinearAction{ //This allows one to create a NonLinearAction without making it its own class
         public ReturningFunc<Boolean> action;
         public LambdaAction(ReturningFunc<Boolean> action){
             this.action=action;
@@ -81,9 +89,8 @@ public abstract class NonLinearActions {
             return action.call();
         }
     }
-    public abstract static class CompoundAction extends NonLinearAction {
+    public abstract static class CompoundAction extends NonLinearAction { //Allows one to represent a sequence of actions as one atomic action. The main difference between this and a sequential action is that you can code custom stop functionality.
         public NonLinearAction sequence;
-
         @Override
         boolean runProcedure() {
             if (isStart) {
@@ -97,7 +104,10 @@ public abstract class NonLinearActions {
             sequence.stop();
         }
     }
-    public static class RunLoopRoutine<E extends Components.RunConfiguration> extends ContinuousAction{
+
+    //PRELOADED ACTIONS
+
+    public static class RunLoopRoutine<E extends Components.PartsConfig> extends ContinuousAction{ //This action runs each actuator's control functions and updates the telemetry using the updateTelemetry function it is provided
         public RunLoopRoutine(Procedure updateTelemetry) {
             super(()->{
                 for (Components.Actuator<?> actuator : actuators.values()){
@@ -137,7 +147,7 @@ public abstract class NonLinearActions {
             });
         }
     }
-    public static class PowerOnCommand extends NonLinearAction{
+    public static class PowerOnCommand extends NonLinearAction{ //This action automatically activates each actuator's default control functions when they are first commanded
         public HashMap<String, Boolean> actuatorsCommanded;
         @Override
         boolean runProcedure() {
@@ -150,7 +160,7 @@ public abstract class NonLinearActions {
             return false;
         }
     }
-    public static class SleepUntilTrue extends NonLinearAction{
+    public static class SleepUntilTrue extends NonLinearAction{ //Sleeps until a condition is met or until an optional timeout time is reached
         public ReturningFunc<Boolean> condition;
         public double timeout;
         public double startTime;
@@ -170,7 +180,7 @@ public abstract class NonLinearActions {
             return !condition.call() && (timer.time()-startTime)<timeout;
         }
     }
-    public static class NonLinearSleepAction extends NonLinearAction{
+    public static class NonLinearSleepAction extends NonLinearAction{ //Sleeps for a set time
         double time;
         double startTime;
         public NonLinearSleepAction(double time){
@@ -184,7 +194,7 @@ public abstract class NonLinearActions {
             return (timer.time()-startTime)<time;
         }
     }
-    public static class NonLinearSequentialAction extends NonLinearAction{
+    public static class NonLinearSequentialAction extends NonLinearAction{ //Runs actions sequentially
         public List<NonLinearAction> remainingActions;
         public List<NonLinearAction> actions;
         public boolean[] isStarts;
@@ -218,7 +228,7 @@ public abstract class NonLinearActions {
             remainingActions.get(0).stop();
         }
     }
-    public static class NonLinearParallelAction extends NonLinearAction{
+    public static class NonLinearParallelAction extends NonLinearAction{ //Runs actions in parallel
         public List<NonLinearAction> remainingActions;
         public List<NonLinearAction> actions;
         public NonLinearParallelAction(NonLinearAction...actions){
@@ -243,19 +253,19 @@ public abstract class NonLinearActions {
             }
         }
     }
-    public static class ConditionalPair{
+    public static class IfThen{ //Holds a condition and an action to be executed if it is met
         public ReturningFunc<Boolean> condition;
         public NonLinearAction action;
-        public ConditionalPair(ReturningFunc<Boolean> condition,NonLinearAction action){
+        public IfThen(ReturningFunc<Boolean> condition,NonLinearAction action){
             this.condition=condition;
             this.action=action;
         }
     }
-    public static class ConditionalAction extends NonLinearAction{
+    public static class ConditionalAction extends NonLinearAction{ //Executes actions if their respective conditions are met, in an if,else-if,else manner. Only one action can run at a time. If one action's condition stops being met, it will finish, unless another action's condition starts being met, in which case it will stop and switch to that action
         public LinkedHashMap<ReturningFunc<Boolean>,NonLinearAction> actions = new LinkedHashMap<>();
         public NonLinearAction currentAction = null;
-        public ConditionalAction(ConditionalPair...conditionalPairs){
-            for (ConditionalPair conditionalPair : conditionalPairs){
+        public ConditionalAction(IfThen...conditionalPairs){
+            for (IfThen conditionalPair : conditionalPairs){
                 actions.put(conditionalPair.condition,conditionalPair.action);
             }
         }
@@ -300,11 +310,11 @@ public abstract class NonLinearActions {
             else return false;
         }
     }
-    public static class PersistentConditionalAction extends PersistentNonLinearAction{
+    public static class PersistentConditionalAction extends PersistentNonLinearAction{ //ConditionalAction, but an action cannot be interrupted
         public LinkedHashMap<ReturningFunc<Boolean>,NonLinearAction> actions = new LinkedHashMap<>();
         public NonLinearAction currentAction = null;
-        public PersistentConditionalAction(ConditionalPair...conditionalPairs){
-            for (ConditionalPair conditionalPair : conditionalPairs){
+        public PersistentConditionalAction(IfThen...conditionalPairs){
+            for (IfThen conditionalPair : conditionalPairs){
                 actions.put(conditionalPair.condition,conditionalPair.action);
             }
         }
@@ -332,11 +342,11 @@ public abstract class NonLinearActions {
             else return false;
         }
     }
-    public static class SemiPersistentConditionalAction extends NonLinearAction{
+    public static class SemiPersistentConditionalAction extends NonLinearAction{ //ConditionalAction, but an action can only be interrupted if the SemiPersistentConditionalAction is reset()
         public LinkedHashMap<ReturningFunc<Boolean>,NonLinearAction> actions = new LinkedHashMap<>();
         public NonLinearAction currentAction = null;
-        public SemiPersistentConditionalAction(ConditionalPair...conditionalPairs){
-            for (ConditionalPair conditionalPair : conditionalPairs){
+        public SemiPersistentConditionalAction(IfThen...conditionalPairs){
+            for (IfThen conditionalPair : conditionalPairs){
                 actions.put(conditionalPair.condition,conditionalPair.action);
             }
         }
@@ -370,9 +380,9 @@ public abstract class NonLinearActions {
             else return false;
         }
     }
-    public static class PressTrigger extends ConditionalAction{
+    public static class PressTrigger extends ConditionalAction{ //ConditionalAction, but all conditions are converted into button-presses, such that they will not return 'true' two loop-iterations in a row.
         public boolean[] isPressed;
-        public PressTrigger(ConditionalPair...conditionalPairs){
+        public PressTrigger(IfThen...conditionalPairs){
             super(conditionalPairs);
             actions.clear();
             isPressed=new boolean[conditionalPairs.length];
@@ -394,9 +404,9 @@ public abstract class NonLinearActions {
             }
         }
     }
-    public static class PersistentPressTrigger extends PersistentConditionalAction{
+    public static class PersistentPressTrigger extends PersistentConditionalAction{ //PressTrigger but persistent
         public boolean[] isPressed;
-        public PersistentPressTrigger(ConditionalPair...conditionalPairs){
+        public PersistentPressTrigger(IfThen...conditionalPairs){
             super(conditionalPairs);
             actions.clear();
             isPressed=new boolean[conditionalPairs.length];
@@ -418,7 +428,7 @@ public abstract class NonLinearActions {
             }
         }
     }
-    public static class LoopForDuration extends NonLinearAction{
+    public static class LoopForDuration extends NonLinearAction{ //Loops an action for a certain duration
         double startTime;
         double duration;
         NonLinearAction action;
@@ -442,7 +452,7 @@ public abstract class NonLinearActions {
             }
         }
     }
-    public abstract static class SleepUntilPose extends SleepUntilTrue{
+    public abstract static class SleepUntilPose extends SleepUntilTrue{ //Sleeps until the drivetrain gets a certain distance from a desired position, or until an optional timeout is reached
         public static ReturningFunc<double[]> getPose;
         public SleepUntilPose(double x, double y, double heading, double poseDistance, double headingDistance, double timeout) {
             super(()->{
@@ -459,7 +469,7 @@ public abstract class NonLinearActions {
             });
         }
     }
-    public abstract static class PathAction<E> extends NonLinearAction{
+    public abstract static class PathAction<E> extends NonLinearAction{ //Action for autonomous pathing. Must be subclassed to create an implementation for a specific autonomous library.
         ReturningFunc<E> buildPath;
         public E path;
         public PathAction(ReturningFunc<E> buildPath){
@@ -469,21 +479,124 @@ public abstract class NonLinearActions {
         boolean runProcedure() {
             if (isStart){
                 preBuild();
-                path=buildPath.call();
+                path=buildPath.call(); //Path is built when the action needs to run (useful for RoadRunner)
             }
             return followPath();
         }
-        abstract boolean followPath();
-        public void preBuild() {}
+        abstract boolean followPath(); //Here, one implements the autonomous library's method of following paths. The function must return true if the path is still being followed, and false if it has finished
+        public void preBuild() {} //Here, one can code anything that must occur right before the path is built.
     }
-    public static void runLoop(Condition loopCondition, NonLinearAction...actions){
+
+    public static class RobotCentricMecanumAction extends NonLinearAction { //Action for robot-centric TeleOp drivetrain control
+        private final ReturningFunc<Double> xFun;
+        private final ReturningFunc<Double> yFun;
+        private final ReturningFunc<Double> rxFun;
+        private final Condition slowDownFun;
+        private final Components.BotMotor[] motors;
+        public RobotCentricMecanumAction(BotMotor[] motors, ReturningFunc<Double> xFun, ReturningFunc<Double> yFun, ReturningFunc<Double> rxFun, Condition slowDownFun){
+            this.xFun = xFun;
+            this.yFun = yFun;
+            this.rxFun = rxFun;
+            this.slowDownFun = slowDownFun;
+            this.motors=motors;
+        }
+        public RobotCentricMecanumAction(BotMotor[] motors, ReturningFunc<Double> xFun, ReturningFunc<Double> yFun, ReturningFunc<Double> rxFun){
+            this(motors,xFun,yFun,rxFun,null);
+        }
+        @Override
+        public boolean runProcedure() {
+            double y = -yFun.call();
+            double x = xFun.call();
+            double rx = -rxFun.call();
+
+            double botHeading = 0;
+
+            double rotX = x * Math.cos(-botHeading) - y * Math.sin(-botHeading);
+            double rotY = x * Math.sin(-botHeading) + y * Math.cos(-botHeading);
+
+            rotX = rotX * 1.1;  // Counteract imperfect strafing
+
+            double denominator = Math.max(Math.abs(rotY) + Math.abs(rotX) + Math.abs(rx), 1);
+            double frontLeftPower = (rotY + rotX + rx) / denominator;
+            double backLeftPower = (rotY - rotX + rx) / denominator;
+            double frontRightPower = (rotY - rotX - rx) / denominator;
+            double backRightPower = (rotY + rotX - rx) / denominator;
+
+            if (slowDownFun!=null && slowDownFun.call()) { // Checks for left trigger input, slows all motors by 25%
+                frontLeftPower = 0.75 * (rotY + rotX + rx) / denominator;
+                backLeftPower = 0.75 * (rotY - rotX + rx) / denominator;
+                frontRightPower = 0.75 * (rotY - rotX - rx) / denominator;
+                backRightPower = 0.75 * (rotY + rotX - rx) / denominator;
+            }
+
+            motors[0].setPower(frontLeftPower);
+            motors[1].setPower(backLeftPower);
+            motors[2].setPower(frontRightPower);
+            motors[3].setPower(backRightPower);
+            return false;
+        }
+    }
+    public static class FieldCentricMecanumAction extends NonLinearAction{ //Action for field-centric TeleOp drivetrain control
+        private final ReturningFunc<Double> xFun;
+        private final ReturningFunc<Double> yFun;
+        private final ReturningFunc<Double> rxFun;
+        private final Condition slowDownFun;
+        private final BotMotor[] motors;
+        private final IMU imu;
+        public FieldCentricMecanumAction(BotMotor[] motors, IMU imu, ReturningFunc<Double> xFun, ReturningFunc<Double> yFun, ReturningFunc<Double> rxFun, Condition slowDownFun){
+            this.xFun = xFun;
+            this.yFun = yFun;
+            this.rxFun = rxFun;
+            this.slowDownFun = slowDownFun;
+            this.motors=motors;
+            this.imu=imu;
+        }
+        public FieldCentricMecanumAction(BotMotor[] motors, IMU imu, ReturningFunc<Double> xFun, ReturningFunc<Double> yFun, ReturningFunc<Double> rxFun) {
+            this(motors, imu, xFun, yFun, rxFun, null);
+        }
+
+        @Override
+        public boolean runProcedure() {
+            double y = -yFun.call();
+            double x = xFun.call();
+            double rx = -rxFun.call();
+
+            double botHeading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+
+            double rotX = x * Math.cos(-botHeading) - y * Math.sin(-botHeading);
+            double rotY = x * Math.sin(-botHeading) + y * Math.cos(-botHeading);
+
+            rotX = rotX * 1.1;  // Counteract imperfect strafing
+
+            double denominator = Math.max(Math.abs(rotY) + Math.abs(rotX) + Math.abs(rx), 1);
+            double frontLeftPower = (rotY + rotX + rx) / denominator;
+            double backLeftPower = (rotY - rotX + rx) / denominator;
+            double frontRightPower = (rotY - rotX - rx) / denominator;
+            double backRightPower = (rotY + rotX - rx) / denominator;
+
+            if (slowDownFun!=null && slowDownFun.call()) { // Checks for left trigger input, slows all motors by 25%
+                frontLeftPower = 0.75 * (rotY + rotX + rx) / denominator;
+                backLeftPower = 0.75 * (rotY - rotX + rx) / denominator;
+                frontRightPower = 0.75 * (rotY - rotX - rx) / denominator;
+                backRightPower = 0.75 * (rotY + rotX - rx) / denominator;
+            }
+
+            motors[0].setPower(frontLeftPower);
+            motors[1].setPower(backLeftPower);
+            motors[2].setPower(frontRightPower);
+            motors[3].setPower(backRightPower);
+            return false;
+        }
+    }
+
+    public static void runLoop(Condition loopCondition, NonLinearAction...actions){ //Runs actions in parallel in a while loop (used for TeleOp)
         while (loopCondition.call()){
             for (NonLinearAction action : actions){
                 action.reset(); action.run();
             }
         }
     }
-    public static void runLinear(NonLinearAction...actions){
+    public static void runLinear(NonLinearAction...actions){ //Runs actions sequentially (used for Autonomous)
         NonLinearAction sequence = new NonLinearSequentialAction(actions);
         while (sequence.run()){}
     }

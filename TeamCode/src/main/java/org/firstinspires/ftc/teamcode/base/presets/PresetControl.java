@@ -14,12 +14,12 @@ import java.util.Arrays;
 
 public abstract class PresetControl {
     public static class PIDF<E extends CRActuator<?>> extends ControlFunction<E>{
-        public static class PIDFConstants{
+        public static class PIDFConstants{ //Stores PIDF coefficients
             public double kP;
             public double kI;
             public double kD;
             public double kF;
-            public ReturningFunc<Double> feedForwardFunc;
+            public ReturningFunc<Double> feedForwardFunc; //From my understanding, feedforward is just a custom way to boost power based on a certain factor. For example, it could be used to counter gravity. feedForwardFunc returns a certain metric, and that will be multiplied by kF.
             public PIDFConstants(double kP, double kI, double kD, double kF, ReturningFunc<Double> feedForwardFunc){
                 this.kP=kP;
                 this.kI=kI;
@@ -39,7 +39,7 @@ public abstract class PresetControl {
         public double[] previousErrors;
         public double prevLoopTime;
         public ArrayList<PIDFConstants> constants;
-        public PIDF(PIDFConstants...constants){
+        public PIDF(PIDFConstants...constants){ //The PIDF can accept multiple sets of coefficients, since if two synchronized CR components have different loads, they will need to produce different power outputs
             this.constants=new ArrayList<>(Arrays.asList(constants));
         }
         @Override
@@ -107,6 +107,7 @@ public abstract class PresetControl {
                 profileStartTime=timer.time();
                 firstResetPosition=parentActuator.getCurrentPosition();
             }
+            //When the profile needs to be reset, it will reset in the next loop iteration to allow for velocity calculation and avoid an issue with loop-time discrepancies
             else if (resetting){
                 resetting=false;
                 createMotionProfile();
@@ -125,6 +126,7 @@ public abstract class PresetControl {
                 } else {
                     startVelocity = (profileStartPos - firstResetPosition) / (timer.time() - profileStartTime);
                 }
+                //If the actuator is a motor, we can use getVelocity to find the velocity at the start of the profile. Otherwise we calculate it manually
                 currentMaxVelocity = MAX_VELOCITY * Math.signum(distance);
                 currentAcceleration = ACCELERATION * Math.signum(currentMaxVelocity - startVelocity);
                 currentDeceleration = -ACCELERATION * Math.signum(distance);
@@ -188,13 +190,13 @@ public abstract class PresetControl {
     }
 
 
-    public static class ServoControl extends ControlFunction<BotServo>{
+    public static class ServoControl extends ControlFunction<BotServo>{ //Control function to get servos to their targets
         @Override
         protected void runProcedure() {
             parentActuator.setPosition(parentActuator.instantTarget);
         }
     }
-    public static class CRBangBangControl<E extends CRActuator<?>> extends ControlFunction<E>{
+    public static class CRBangBangControl<E extends CRActuator<?>> extends ControlFunction<E>{ //Likely will be used to get CRServos to their targets if they have no encoders with them
         ReturningFunc<Double> powerFunc;
         public CRBangBangControl(double power){
             this.powerFunc=()->(power);

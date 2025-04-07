@@ -18,7 +18,7 @@ import org.firstinspires.ftc.teamcode.base.NonLinearActions.CompoundAction;
 import org.firstinspires.ftc.teamcode.base.NonLinearActions.NonLinearAction;
 import org.firstinspires.ftc.teamcode.base.NonLinearActions.ConditionalAction;
 import org.firstinspires.ftc.teamcode.base.NonLinearActions.PressTrigger;
-import org.firstinspires.ftc.teamcode.base.NonLinearActions.ConditionalPair;
+import org.firstinspires.ftc.teamcode.base.NonLinearActions.IfThen;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Target;
@@ -46,8 +46,8 @@ public abstract class Components {
     public static HashMap<String,Actuator<?>> actuators = new HashMap<>(); //Map of all actuators, each accessible through its name
     @Target(ElementType.METHOD)
     public @interface Actuate{} //Used to denote methods that actually move a part, like setPower or setPosition
-    public abstract static class RunConfiguration{ //Classes overriding RunConfiguration will have static fields that hold all the actuators for a build. Similar to Mr. Nayal's JSON files that held data on each component of a build.
-        public static RunConfiguration singleton; //Needed because the method initParts must be overridden, and static methods cannot be overridden, so it must be called through an instance
+    public abstract static class PartsConfig{ //Classes overriding RunConfiguration will have static fields that hold all the actuators for a build. Similar to Mr. Nayal's JSON files that held data on each component of a build.
+        public static PartsConfig singleton; //Needed because the method initParts must be overridden, and static methods cannot be overridden, so it must be called through an instance
         public static void initialize(HardwareMap hardwareMap, Telemetry telemetry){ //This is the method called in TeleOp classes, as it also provides hardwareMap and telemetry to the codebase
             Components.hardwareMap=hardwareMap;
             Components.telemetry=telemetry;
@@ -88,11 +88,11 @@ public abstract class Components {
 
         public HashMap<String,Double> keyPositions = new HashMap<>(); //Stores key positions, like 'transferPosition,' etc.
 
-        public HashMap<String,ReturningFunc<Double>> getCurrentPositions; //Map of methods to get the current positions of each of the actuator's parts.
+        public HashMap<String,ReturningFunc<Double>> getCurrentPositions; //Map of methods to get the current positions of each of the actuator's parts. (They may have slightly different positions each)
         public FuncRegister<?> funcRegister;
         public String currControlFuncKey;
         public String defaultControlKey;
-        public Function<Double,Double> positionConversion = (Double pos)->(pos); //Indicates if you want to apply unit conversion on the getCurrentPosition method to return it in a different unit (e.g ticks to inches)
+        public Function<Double,Double> positionConversion = (Double pos)->(pos); //Allows one to apply unit conversion on the getCurrentPosition method to return it in a different unit (e.g ticks to inches)
         public Function<Double,Double> positionConversionInverse = (Double pos)->(pos);
         public boolean timeBasedLocalization; //Indicates whether the getCurrentPosition method of the actuator calculates the position based on time as opposed to an encoder, which is important to know.
         public boolean dynamicTargetBoundaries=false; //Indicates whether the max and min targets can change. Useful to know if they don't
@@ -177,7 +177,7 @@ public abstract class Components {
             }
             currControlFuncKey=key;
         }
-        public class SetTargetAction extends CompoundAction {
+        public class SetTargetAction extends CompoundAction { //Sets the target, then waits until the position of the actuator is a certain distance from the target, or until a set timeout
             public SetTargetAction(ReturningFunc<Double> targetFunc, double timeout){
                 sequence = new NonLinearSequentialAction(
                         new InstantAction(()-> setTarget(targetFunc.call())),
@@ -271,38 +271,39 @@ public abstract class Components {
             return new SetOffsetAction(offsetFunc);
         }
         public PressTrigger triggeredSetTargetAction(Condition condition, double target){
-            return new PressTrigger(new ConditionalPair(condition, new SetTargetAction(target)));
+            return new PressTrigger(new IfThen(condition, new SetTargetAction(target)));
         }
         public PressTrigger triggeredSetTargetAction(Condition condition, ReturningFunc<Double> targetFunc) {
-            return new PressTrigger(new ConditionalPair(condition, setTargetAction(targetFunc)));
+            return new PressTrigger(new IfThen(condition, setTargetAction(targetFunc)));
         }
         public PressTrigger triggeredSetTargetAction(Condition condition, double target, double timeout){
-                return new PressTrigger(new ConditionalPair(condition, setTargetAction(target,timeout)));
+                return new PressTrigger(new IfThen(condition, setTargetAction(target,timeout)));
         }
         public PressTrigger triggeredSetTargetAction(Condition condition, ReturningFunc<Double> targetFunc, double timeout){
-                return new PressTrigger(new ConditionalPair(condition, setTargetAction(targetFunc,timeout)));
+                return new PressTrigger(new IfThen(condition, setTargetAction(targetFunc,timeout)));
         }
         public PressTrigger triggeredToggleAction(Condition condition, double target1, double target2){
-            return new PressTrigger(new ConditionalPair(condition, toggleAction(target1,target2)));
+            return new PressTrigger(new IfThen(condition, toggleAction(target1,target2)));
         }
         public ConditionalAction triggeredDynamicAction(Condition upCondition, Condition downCondition, double change){
-            return new ConditionalAction(new ConditionalPair(upCondition, setTargetAction(()->(target+change))),new ConditionalPair(downCondition, setTargetAction(()->(target-change))));
+            return new ConditionalAction(new IfThen(upCondition, setTargetAction(()->(target+change))),new IfThen(downCondition, setTargetAction(()->(target-change))));
         }
         public PressTrigger triggeredFSMAction(Condition upCondition, Condition downCondition, double...targets){
-            return new PressTrigger(new ConditionalPair(upCondition, upwardFSMAction(targets)),new ConditionalPair(downCondition, downwardFSMAction(targets)));
+            return new PressTrigger(new IfThen(upCondition, upwardFSMAction(targets)),new IfThen(downCondition, downwardFSMAction(targets)));
         }
         public PressTrigger triggeredSetOffsetAction(Condition condition, double offset){
-            return new PressTrigger(new ConditionalPair(condition, new SetOffsetAction(offset)));
+            return new PressTrigger(new IfThen(condition, new SetOffsetAction(offset)));
         }
         public PressTrigger triggeredDynamicOffsetAction(Condition upCondition, Condition downCondition, double offsetChange){
-            return new PressTrigger(new ConditionalPair(upCondition, setOffsetAction(()->(offset+offsetChange))),new ConditionalPair(downCondition, setOffsetAction(()->(target-offsetChange))));
+            return new PressTrigger(new IfThen(upCondition, setOffsetAction(()->(offset+offsetChange))),new IfThen(downCondition, setOffsetAction(()->(target-offsetChange))));
         }
     }
     public abstract static class CRActuator<E extends DcMotorSimple> extends Actuator<E>{ //Type of Actuator that works for continuous rotation parts, like DcMotorEx and CRServo
         HashMap<String,Double> powers; //Stores the powers each of the parts are set to. Synchronized parts can have different powers because the load on one may be larger than on the other
         ReturningFunc<Double> maxPowerFunc;
         ReturningFunc<Double> minPowerFunc;
-        public boolean dynamicPowerBoundaries=false;
+        //Max and min power boundaries
+        public boolean dynamicPowerBoundaries=false; //Indicates if the power boundaries can change, which is useful to know
         public CRActuator(String name, Class<E> type, String[] names, ReturningFunc<Double> maxTargetFunc, ReturningFunc<Double> minTargetFunc, ReturningFunc<Double> maxPowerFunc, ReturningFunc<Double> minPowerFunc, double errorTol, double defaultTimeout, String[] keyPositionKeys, double[] keyPositionValues,
                            DcMotorSimple.Direction[] directions) {
             super(name, type, names, maxTargetFunc, minTargetFunc, errorTol, defaultTimeout, keyPositionKeys, keyPositionValues);
@@ -319,7 +320,7 @@ public abstract class Components {
             this(name,type,names,maxTargetFunc,minTargetFunc,()->(1.0),()->(-1.0),errorTol,defaultTimeout,keyPositionKeys,keyPositionValues,directions);
         }
         @Actuate
-        public void setPower(double power, String name){
+        public void setPower(double power, String name){ //Sets power to a specific part
             if (isPowered){
                 power=Math.max(Math.min(power, maxPowerFunc.call()), minPowerFunc.call());
                 E part = parts.get(name);
@@ -327,14 +328,14 @@ public abstract class Components {
                 if (Math.abs(power-part.getPower())>0.05) {
                     part.setPower(power);
                     powers.put(name,power);
-                    if (timeBasedLocalization){
+                    if (timeBasedLocalization){ //If current position is calculated by time, it needs to be updated everytime the actuator moves
                         getCurrentPosition(name);
                     }
                 }
             }
         }
         @Actuate
-        public void setPower(double power){
+        public void setPower(double power){ //Sets power to all synchronized parts at once
             if (isPowered) {
                 power=Math.max(Math.min(power, maxPowerFunc.call()), minPowerFunc.call());
                 if (Math.abs(power-Objects.requireNonNull(this.powers.get(partNames[0])))>0.05) {
@@ -390,21 +391,21 @@ public abstract class Components {
             });
         }
         public PressTrigger triggeredSetPowerAction(Condition condition, ReturningFunc<Double> powerFunc){
-            return new PressTrigger(new ConditionalPair(condition, new SetPowerAction(powerFunc)));
+            return new PressTrigger(new IfThen(condition, new SetPowerAction(powerFunc)));
         }
         public PressTrigger triggeredSetPowerAction(Condition condition, double power){
-            return new PressTrigger(new ConditionalPair(condition, new SetPowerAction(power)));
+            return new PressTrigger(new IfThen(condition, new SetPowerAction(power)));
         }
         public ConditionalAction triggeredDynamicPowerAction(Condition upCondition, Condition downCondition, double change){
-            return new ConditionalAction(new ConditionalPair(upCondition, setPowerAction(()->(Objects.requireNonNull(powers.get(partNames[0]))+change))),new ConditionalPair(downCondition, setPowerAction(()->(Objects.requireNonNull(powers.get(partNames[0]))-change))));
+            return new ConditionalAction(new IfThen(upCondition, setPowerAction(()->(Objects.requireNonNull(powers.get(partNames[0]))+change))),new IfThen(downCondition, setPowerAction(()->(Objects.requireNonNull(powers.get(partNames[0]))-change))));
         }
         public PressTrigger triggeredTogglePowerAction(Condition condition, double power1, double power2){
-            return new PressTrigger(new ConditionalPair(condition, togglePowerAction(power1,power2)));
+            return new PressTrigger(new IfThen(condition, togglePowerAction(power1,power2)));
         }
         public PressTrigger triggeredFSMPowerAction(Condition upCondition, Condition downCondition, double...powers){
             return new PressTrigger(
-                    new ConditionalPair(upCondition, upwardFSMPowerAction(powers)),
-                    new ConditionalPair(downCondition, downwardFSMPowerAction(powers))
+                    new IfThen(upCondition, upwardFSMPowerAction(powers)),
+                    new IfThen(downCondition, downwardFSMPowerAction(powers))
             );
         }
     }
@@ -428,14 +429,30 @@ public abstract class Components {
             }
             this.funcRegister=new FuncRegister<BotMotor>(this,(DcMotorEx motor)->((double) motor.getCurrentPosition()),controlFuncKeys, controlFuncs);
         }
-        public double getVelocity(){
+        public double getVelocity(){ //Returns avg velocity of all parts
             double avg=0;
             for (DcMotorEx part:parts.values()){
                 avg+=part.getVelocity();
             }
             return avg/parts.size();
         }
-        public class StallResetAction extends NonLinearAction {
+        public void resetEncoders(){
+            for (DcMotorEx part:parts.values()){
+                part.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+                part.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            }
+        }
+        public void setZeroPowerFloat(){
+            for (DcMotorEx part:parts.values()){
+                part.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            }
+        }
+        public void setZeroPowerBrake(){
+            for (DcMotorEx part:parts.values()){
+                part.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            }
+        }
+        public class StallResetAction extends NonLinearAction { //Stall resets encoders, and offsets the position if you want to reset at a non-zero position.
             double resetPosition;
             double stallVolts;
             public StallResetAction(double resetPosition, double stallVolts) {
@@ -465,7 +482,7 @@ public abstract class Components {
             return new StallResetAction(resetPosition,stallVolts);
         }
         public PressTrigger triggeredStallResetAction(Condition condition, double resetPosition,double stallVolts){
-            return new PressTrigger(new ConditionalPair(condition,stallResetAction(resetPosition,stallVolts)));
+            return new PressTrigger(new IfThen(condition,stallResetAction(resetPosition,stallVolts)));
         }
     }
     public static class BotServo extends Actuator<Servo>{
