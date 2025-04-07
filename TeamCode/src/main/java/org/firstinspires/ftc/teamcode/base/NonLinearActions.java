@@ -111,10 +111,10 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
         public RunLoopRoutine(Procedure updateTelemetry) {
             super(()->{
                 for (Components.Actuator<?> actuator : actuators.values()){
-                    if (actuator.dynamicTargetBoundaries){
+                    if (actuator.dynamicTargetBoundaries){ //If the actuator's target boundaries can change, this will ensure that the actuator's target never falls outside of the boundaries
                         actuator.setTarget(actuator.target);
                     }
-                    if (actuator instanceof Components.CRActuator && ((Components.CRActuator<?>) actuator).dynamicPowerBoundaries){
+                    if (actuator instanceof Components.CRActuator && ((Components.CRActuator<?>) actuator).dynamicPowerBoundaries){ //If the CRActuator's power boundaries can change, this will ensure that the CRActuator's power never falls outside of the boundaries
                         Components.CRActuator<?> castedActuator=((Components.CRActuator<?>) actuator);
                         castedActuator.setPower(Objects.requireNonNull(castedActuator.powers.get(castedActuator.partNames[0])));
                     }
