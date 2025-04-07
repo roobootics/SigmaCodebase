@@ -107,7 +107,7 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
 
     //PRELOADED ACTIONS
 
-    public static class RunLoopRoutine<E extends Components.PartsConfig> extends ContinuousAction{ //This action runs each actuator's control functions and updates the telemetry using the updateTelemetry function it is provided
+    public static class RunLoopRoutine extends ContinuousAction{ //This action runs each actuator's control functions and updates the telemetry using the updateTelemetry function it is provided
         public RunLoopRoutine(Procedure updateTelemetry) {
             super(()->{
                 for (Components.Actuator<?> actuator : actuators.values()){

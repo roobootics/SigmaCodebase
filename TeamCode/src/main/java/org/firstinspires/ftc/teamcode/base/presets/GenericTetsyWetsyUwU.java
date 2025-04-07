@@ -17,7 +17,7 @@ public class GenericTetsyWetsyUwU extends LinearOpMode { //Used to find the spec
     public ArrayList<String> actuatorNames;
     @Override
     public void runOpMode(){
-        //Uncomment below line and replace PartsConfig with the desired subclass of PartsConfig you wish to use
+        //Uncomment below line and replace PartsConfig with the desired subclass of PartsConfig whose actuators you wish to test
         //run<PartsConfig>()
     }
     public void updateTelemetry(){
@@ -61,7 +61,7 @@ public class GenericTetsyWetsyUwU extends LinearOpMode { //Used to find the spec
         waitForStart();
         NonLinearActions.runLoop(
                 this::opModeIsActive,
-                new NonLinearActions.RunLoopRoutine<E>(this::updateTelemetry),
+                new NonLinearActions.RunLoopRoutine(this::updateTelemetry),
                 new NonLinearActions.PressTrigger(new NonLinearActions.IfThen(
                         ()->(gamepad1.dpad_left),
                         new NonLinearActions.InstantAction(this::shiftSelectionLeft)
