@@ -12,12 +12,13 @@ import org.firstinspires.ftc.teamcode.base.NonLinearActions;
 import java.util.ArrayList;
 import java.util.Objects;
 @TeleOp
-public class GenericTetsyWetsyUwU extends LinearOpMode { //Used to find the specific positions that we will end up setting actuators to. Excuse the crude, yet traditional, naming convention.
+public class GenericTetsyWetsyUwU extends LinearOpMode { //Used to find the specific positions that we will end up setting actuators to. Excuse the crude, yet traditional, naming convention. Allows one to select an actuator and move it.
     public int selectedActuatorIndex = 0;
     public ArrayList<String> actuatorNames;
     @Override
     public void runOpMode(){
-        //run<RunConfiguration>()
+        //Uncomment below line and replace PartsConfig with the desired subclass of PartsConfig you wish to use
+        //run<PartsConfig>()
     }
     public void updateTelemetry(){
         telemetry.addLine(actuatorNames.get(selectedActuatorIndex));
@@ -44,6 +45,7 @@ public class GenericTetsyWetsyUwU extends LinearOpMode { //Used to find the spec
                 Components.BotMotor motor = Objects.requireNonNull((Components.BotMotor) actuators.get(name));
                 motor.resetEncoders();
                 motor.setZeroPowerFloat();
+                //Motors are disabled; to find their positions you move them manually and read the encoder
             }
             actuatorNames.add(name);
         }

@@ -46,14 +46,15 @@ public abstract class Components {
     public static HashMap<String,Actuator<?>> actuators = new HashMap<>(); //Map of all actuators, each accessible through its name
     @Target(ElementType.METHOD)
     public @interface Actuate{} //Used to denote methods that actually move a part, like setPower or setPosition
-    public abstract static class PartsConfig{ //Classes overriding RunConfiguration will have static fields that hold all the actuators for a build. Similar to Mr. Nayal's JSON files that held data on each component of a build.
+    public abstract static class PartsConfig{ //Classes overriding PartsConfig will have static fields that hold all the actuators for a build. Similar to Mr. Nayal's JSON files that held the components and data on each component of a build.
+        //Create field of type Actuator here to hold the actuators
         public static PartsConfig singleton; //Needed because the method initParts must be overridden, and static methods cannot be overridden, so it must be called through an instance
         public static void initialize(HardwareMap hardwareMap, Telemetry telemetry){ //This is the method called in TeleOp classes, as it also provides hardwareMap and telemetry to the codebase
             Components.hardwareMap=hardwareMap;
             Components.telemetry=telemetry;
             singleton.initParts();
         }
-        abstract void initParts(); //This is where the actuator instances are constructed and assigned to the static fields in the RunConfiguration
+        abstract void initParts(); //This is where the actuator instances are constructed and assigned to the static fields in the PartsConfig
     }
     public abstract static class ControlFunction<E extends Actuator<?>>{ //The subclasses of this are methods that are called to control actuators and get them to the target, such as PID or motion profiles. Each function works with a specific type of actuator. Multiple can run at once
         public E parentActuator; //Each function has access to the actuator it runs on
