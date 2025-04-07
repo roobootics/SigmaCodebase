@@ -98,7 +98,7 @@ public abstract class Components {
         public boolean timeBasedLocalization; //Indicates whether the getCurrentPosition method of the actuator calculates the position based on time as opposed to an encoder, which is important to know.
         public boolean dynamicTargetBoundaries=false; //Indicates whether the max and min targets can change. Useful to know if they don't
 
-        public class FuncRegister<T extends Actuator<E>>{ //Registers functions such as control functions or functions to find the current position of the actuator to the actuator. Parametrized to the subclass of Actuator that is using it.
+        public class FuncRegister<T extends Actuator<E>>{ //Registers functions such as control functions or functions to find the current position of the actuator to the actuator. Parametrized to the subclass of Actuator that is using it. The functions cannot be stored directly in the actuator because of generic type erasure and generic invariance. This approach is cleaner
             public HashMap<String, List<ControlFunction<T>>> controlFuncsMap = new HashMap<>(); //Map with lists of control functions paired with names.
             @SafeVarargs
             public FuncRegister(T instance, Function<E, Double> getCurrentPosition, //The function to find the current position of the actuator accepts one of the actuator's parts
@@ -178,7 +178,7 @@ public abstract class Components {
             }
             currControlFuncKey=key;
         }
-        public class SetTargetAction extends CompoundAction { //Sets the target, then waits until the position of the actuator is a certain distance from the target, or until a set timeout
+        public class SetTargetAction extends CompoundAction { //Action to set the target, then wait until the position of the actuator is a certain distance from the target, or until a set timeout
             public SetTargetAction(ReturningFunc<Double> targetFunc, double timeout){
                 sequence = new NonLinearSequentialAction(
                         new InstantAction(()-> setTarget(targetFunc.call())),
@@ -202,7 +202,7 @@ public abstract class Components {
                 setTarget(getCurrentPosition());
             }
         }
-        public class SetOffsetAction extends CompoundAction {
+        public class SetOffsetAction extends CompoundAction { //Action to set the offset
             public SetOffsetAction(ReturningFunc<Double> offsetFunc, double timeout){
                 sequence = new NonLinearSequentialAction(
                         new InstantAction(()-> setOffset(offsetFunc.call())),
@@ -350,7 +350,7 @@ public abstract class Components {
                 }
             }
         }
-        public class SetPowerAction extends InstantAction{
+        public class SetPowerAction extends InstantAction{ //Action to set the power of all synchronized parts
             public SetPowerAction(ReturningFunc<Double> powerFunc) {
                 super(()-> setPower(powerFunc.call()));
             }
