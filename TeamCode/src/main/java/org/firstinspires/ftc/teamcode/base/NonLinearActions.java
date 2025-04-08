@@ -595,6 +595,9 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
                 action.reset(); action.run();
             }
         }
+        for (NonLinearAction action : actions){
+            action.stop();
+        }
     }
     public static void runLinear(NonLinearAction...actions){ //Runs actions sequentially (used for Autonomous)
         NonLinearAction sequence = new NonLinearSequentialAction(actions);
