@@ -40,9 +40,6 @@ public abstract class Components {
     public static HardwareMap hardwareMap;
     public static Telemetry telemetry;
     public static ElapsedTime timer = new ElapsedTime(); //Central timer used by everything (e.g. sleep action, motion profile)
-    static{
-        timer.reset(); //Static variables are preserved between runs, so timer needs to be reset
-    }
     public static HashMap<String,Actuator<?>> actuators = new HashMap<>(); //Map of all actuators, each accessible through its name
     @Target(ElementType.METHOD)
     public @interface Actuate{} //Used to denote methods that actually move a part, like setPower or setPosition
@@ -52,6 +49,7 @@ public abstract class Components {
         public static void initialize(HardwareMap hardwareMap, Telemetry telemetry){ //This is the method called in TeleOp classes, as it also provides hardwareMap and telemetry to the codebase
             Components.hardwareMap=hardwareMap;
             Components.telemetry=telemetry;
+            timer.reset(); //Static variables are preserved between runs, so timer needs to be reset
             singleton.initParts();
         }
         abstract void initParts(); //This is where the actuator instances are constructed and assigned to the static fields in the PartsConfig
