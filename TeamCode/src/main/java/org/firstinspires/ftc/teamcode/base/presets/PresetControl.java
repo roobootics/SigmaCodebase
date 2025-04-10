@@ -107,7 +107,7 @@ public abstract class PresetControl { //Holds control functions that actuators c
                 profileStartTime=timer.time();
                 firstResetPosition=parentActuator.getCurrentPosition();
             }
-            //When the profile needs to be reset, it will reset in the next loop iteration to allow for velocity calculation and avoid an issue with loop-time discrepancies
+            //When the profile needs to be reset, it will reset not in the current, but in the next loop iteration to allow for velocity calculation and avoid an issue with loop-time discrepancies
             else if (resetting){
                 resetting=false;
                 createMotionProfile();

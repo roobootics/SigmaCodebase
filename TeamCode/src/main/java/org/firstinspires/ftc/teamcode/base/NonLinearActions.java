@@ -276,8 +276,9 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
             this.actions = Arrays.asList(actions);
             this.remainingActions = new ArrayList<>(this.actions);
             isStarts = new ArrayList<>(actions.length);
-            for (int i = 0; i < actions.length; i++) {
+            for (NonLinearAction action : actions) {
                 isStarts.add(true);
+                action.registerRemoveFromGroup(() -> this.removeAction(action));
             }
         }
 
@@ -326,6 +327,9 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
         public NonLinearParallelAction(NonLinearAction... actions) {
             this.actions = Arrays.asList(actions);
             this.remainingActions = new ArrayList<>(this.actions);
+            for (NonLinearAction action : actions) {
+                action.registerRemoveFromGroup(() -> this.removeAction(action));
+            }
         }
 
         @Override
@@ -373,10 +377,12 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
     public static class ConditionalAction extends NonLinearAction implements MappedActionGroup<ReturningFunc<Boolean>> { //Executes actions if their respective conditions are met, in an if,else-if,else manner. Only one action can run at a time. If one action's condition stops being met, it will finish, unless another action's condition starts being met, in which case it will stop and switch to that action
         public LinkedHashMap<ReturningFunc<Boolean>, NonLinearAction> actions = new LinkedHashMap<>();
         public NonLinearAction currentAction = null;
-
         public ConditionalAction(IfThen... conditionalPairs) {
             for (IfThen conditionalPair : conditionalPairs) {
                 actions.put(conditionalPair.condition, conditionalPair.action);
+            }
+            for (NonLinearAction action : actions.values()) {
+                action.registerRemoveFromGroup(() -> this.removeAction(action));
             }
         }
 
@@ -582,9 +588,11 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
         }
     }
 
-    public abstract static class SleepUntilPose extends SleepUntilTrue { //Sleeps until the drivetrain gets a certain distance from a desired position, or until an optional timeout is reached
+    public abstract static class SleepUntilPose extends SleepUntilTrue { //Sleeps until the drivetrain and heading get a certain distance from a desired position and heading, or until an optional timeout is reached
         public static ReturningFunc<double[]> getPose;
-
+        public static void setGetPose(ReturningFunc<double[]> getPose){
+            SleepUntilPose.getPose=getPose;
+        }
         public SleepUntilPose(double x, double y, double heading, double poseDistance, double headingDistance, double timeout) {
             super(() -> {
                 double[] pose = getPose.call();
@@ -732,22 +740,39 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
             return false;
         }
     }
-
-    public static void runLoop(Condition loopCondition, NonLinearAction... actions) { //Runs actions in parallel in a while loop (used for TeleOp)
-        while (loopCondition.call()) {
+    public static class LoopActionScheduler implements UnmappedActionGroup{ //Group of actions that runs actions in parallel in a while loop (used for TeleOp)
+        public ArrayList<NonLinearAction> actions;
+        public LoopActionScheduler(NonLinearAction...actions){
+            this.actions=new ArrayList<>(Arrays.asList(actions));
             for (NonLinearAction action : actions) {
-                action.reset();
-                action.run();
+                action.registerRemoveFromGroup(() -> this.removeAction(action));
             }
         }
-        for (NonLinearAction action : actions) {
-            action.stop();
+        public void runLoop(Condition loopCondition) {
+            while (loopCondition.call()) {
+                for (NonLinearAction action : actions) {
+                    action.reset(); action.run();
+                }
+            }
+            for (NonLinearAction action : actions) {
+                action.stop();
+            }
+        }
+        @Override
+        public void addActionProcedure(NonLinearAction action) {
+            actions.add(action);
+        }
+        @Override
+        public void removeActionProcedure(NonLinearAction action) {
+            actions.remove(action);
         }
     }
-
-    public static void runLinear(NonLinearAction... actions) { //Runs actions sequentially (used for Autonomous)
-        NonLinearAction sequence = new NonLinearSequentialAction(actions);
-        while (sequence.run()) {
+    public static class LinearActionScheduler extends NonLinearSequentialAction { //Group of actions that runs actions sequentially (used for Autonomous)
+        public LinearActionScheduler(NonLinearAction... actions) {
+            super(actions);
+        }
+        public void runLinear() {
+            while (run()){}
         }
     }
 }

@@ -59,8 +59,7 @@ public class GenericTetsyWetsyUwU extends LinearOpMode { //Used to find the spec
         }
 
         waitForStart();
-        NonLinearActions.runLoop(
-                this::opModeIsActive,
+        new NonLinearActions.LoopActionScheduler(
                 new NonLinearActions.RunLoopRoutine(this::updateTelemetry),
                 new NonLinearActions.PressTrigger(new NonLinearActions.IfThen(
                         ()->(gamepad1.dpad_left),
@@ -73,6 +72,6 @@ public class GenericTetsyWetsyUwU extends LinearOpMode { //Used to find the spec
                 new NonLinearActions.ConditionalAction(
                         conditions
                 )
-        );
+        ).runLoop(this::opModeIsActive);
     }
 }
