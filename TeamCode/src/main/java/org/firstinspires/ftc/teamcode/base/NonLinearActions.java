@@ -474,7 +474,7 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
         }
     }
 
-    public static class SemiPersistentConditionalAction extends NonLinearAction { //ConditionalAction, but an action can only be interrupted if the SemiPersistentConditionalAction is reset()
+    public static class SemiPersistentConditionalAction extends NonLinearAction implements MappedActionGroup<ReturningFunc<Boolean>> { //ConditionalAction, but an action can only be interrupted if the SemiPersistentConditionalAction is reset()
         public LinkedHashMap<ReturningFunc<Boolean>, NonLinearAction> actions = new LinkedHashMap<>();
         public NonLinearAction currentAction = null;
 
@@ -510,6 +510,21 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
                     return true;
                 }
             } else return false;
+        }
+        @Override
+        public void addActionProcedure(ReturningFunc<Boolean> key, NonLinearAction action) {
+            actions.put(key,action);
+        }
+        @Override
+        public void removeActionProcedure(NonLinearAction action) {
+            for (ReturningFunc<Boolean> key: actions.keySet()){
+                if (actions.get(key)==action){
+                    if (currentAction==actions.get(key)){
+                        currentAction=null;
+                    }
+                    actions.remove(key);
+                }
+            }
         }
     }
 
@@ -613,11 +628,9 @@ public abstract class NonLinearActions { //Command-based (or action-based) syste
     public abstract static class PathAction<E> extends NonLinearAction { //Action for autonomous pathing. Must be subclassed to create an implementation for a specific autonomous library. Parameterized to the actual path object it is based off of.
         ReturningFunc<E> buildPath;
         public E path; //Stores the path this action follows. For RR it would be a TrajectoryAction, for Pedro it would be a PathChain
-
         public PathAction(ReturningFunc<E> buildPath) {
             this.buildPath = buildPath;
         }
-
         @Override
         boolean runProcedure() {
             if (isStart) {
